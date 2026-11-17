@@ -20,6 +20,9 @@ class UsuarioPerfil {
   bool get esAdministrador => rol == 'administrador';
   bool get esConsultorSiga => rol == 'consultor_siga';
 
+  /// Nombre oficial de la planta
+  String get plantaNombre => 'PTAP Villa Clara';
+
   /// Permite crear o editar registros operativos
   bool get puedeEditar => esOperario || esAdministrador;
 

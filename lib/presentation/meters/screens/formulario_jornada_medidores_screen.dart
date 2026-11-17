@@ -3,8 +3,11 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../data/models/alerta_sistema_modelo.dart';
 import '../../../data/models/medidores_modelos.dart';
 import '../../../domain/calculations/calculos_medidores.dart';
+import '../../../domain/validators/validador_rangos.dart';
+import '../../alerts/providers/alertas_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/medidores_provider.dart';
 
@@ -95,8 +98,110 @@ class _FormularioJornadaMedidoresScreenState
     if (!_formKey.currentState!.validate()) return;
 
     final medidores = context.read<MedidoresProvider>().catalogoMedidores;
+
+    // Validación crítica b: Lectura final >= lectura inicial
+    for (final m in medidores) {
+      final act = _parse(_actualControllers[m.id]!);
+      final ant = _parse(_anteriorControllers[m.id]!);
+      final val = ValidadorRangos.validarLecturaMedidor(
+        inicial: ant,
+        finalLectura: act,
+        nombreMedidor: m.nombre,
+      );
+      if (!val.cumple) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(Icons.error_outline_rounded, color: AppColors.critico),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text('Error Crítico en Lectura', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+            content: Text(val.mensajeCompleto, style: const TextStyle(fontSize: 13)),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Corregir'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+    }
+
     final balance = _calcularBalanceVivo();
     final authProvider = context.read<SesionUsuarioProvider>();
+
+    // Validación c: Pérdida elevada de agua
+    final perdidaAlta = balance.aguaNoRegistrada.abs() > 5.0;
+    if (perdidaAlta) {
+      final confirmar = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: AppColors.advertencia),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text('Pérdida de Agua Elevada', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'El balance hídrico calculó un Agua No Registrada (ANR) de ${balance.aguaNoRegistrada.toStringAsFixed(2)} m³ (${balance.porcentajePerdida.toStringAsFixed(1)}%).\n\n'
+                'Supera el umbral operativo normal de 5,0 m³. Puede indicar fuga oculta en la red o subcontabilización de micromedidores.\n\n'
+                '¿Desea confirmar el registro? Debe ingresar obligatoriamente una observación técnica justificando la novedad.',
+                style: const TextStyle(fontSize: 12, height: 1.4),
+              ),
+            ],
+          ),
+          actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Corregir'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.advertencia),
+              child: const Text('Guardar de todos modos'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmar != true) return;
+      if (!mounted) return;
+
+      if (_observacionesController.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Debe ingresar una observación justificando la pérdida elevada.'),
+            backgroundColor: AppColors.critico,
+          ),
+        );
+        return;
+      }
+
+      context.read<AlertasProvider>().agregarAlerta(
+        titulo: 'Pérdida hídrica anormal detectada',
+        descripcion: 'Balance hídrico con ANR de ${balance.aguaNoRegistrada.toStringAsFixed(2)} m³ (${balance.porcentajePerdida.toStringAsFixed(1)}%).',
+        severidad: SeveridadAlerta.advertencia,
+        parametro: 'Balance ANR',
+        valorRegistrado: balance.aguaNoRegistrada,
+      );
+    }
 
     final listaLecturas = <LecturaMedidor>[];
 

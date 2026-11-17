@@ -29,6 +29,7 @@ class HistorialProvider extends ChangeNotifier {
 
   // Getters
   List<ItemHistorial> get items => _itemsFiltrados;
+  List<ItemHistorial> get itemsFiltrados => _itemsFiltrados;
   List<ItemHistorial> get todosLosItems => _todosLosItems;
   List<String> get usuariosDisponibles => _usuariosDisponibles;
   bool get cargando => _cargando;

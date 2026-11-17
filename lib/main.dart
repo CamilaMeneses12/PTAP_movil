@@ -6,6 +6,7 @@ import 'core/routes/app_routes.dart';
 import 'core/theme/app_theme.dart';
 import 'core/utils/supabase_config.dart';
 import 'presentation/admin/providers/admin_provider.dart';
+import 'presentation/alerts/providers/alertas_provider.dart';
 import 'presentation/auth/providers/auth_provider.dart';
 import 'presentation/flow/providers/caudal_provider.dart';
 import 'presentation/history/providers/historial_provider.dart';
@@ -38,6 +39,7 @@ class _PlantaAguaAppState extends State<PlantaAguaApp> {
   late final CaudalProvider _caudalProvider;
   late final HistorialProvider _historialProvider;
   late final AdminProvider _adminProvider;
+  late final AlertasProvider _alertasProvider;
 
   @override
   void initState() {
@@ -48,6 +50,7 @@ class _PlantaAguaAppState extends State<PlantaAguaApp> {
     _caudalProvider = CaudalProvider();
     _historialProvider = HistorialProvider();
     _adminProvider = AdminProvider();
+    _alertasProvider = AlertasProvider();
   }
 
   @override
@@ -60,6 +63,7 @@ class _PlantaAguaAppState extends State<PlantaAguaApp> {
         ChangeNotifierProvider.value(value: _caudalProvider),
         ChangeNotifierProvider.value(value: _historialProvider),
         ChangeNotifierProvider.value(value: _adminProvider),
+        ChangeNotifierProvider.value(value: _alertasProvider),
       ],
       child: Builder(
         builder: (context) {

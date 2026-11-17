@@ -4,11 +4,9 @@ import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/routes/app_routes.dart';
 import '../../../data/services/excel_export_service.dart';
 import '../../../data/services/export_share_service.dart';
 import '../../../data/services/pdf_export_service.dart';
-import '../../common/widgets/app_drawer.dart';
 import '../../flow/providers/caudal_provider.dart';
 import '../../history/providers/historial_provider.dart';
 import '../../meters/providers/medidores_provider.dart';
@@ -227,8 +225,11 @@ class _ExportarReportesScreenState extends State<ExportarReportesScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.fondoGeneral,
-      drawer: const AppDrawer(rutaActual: AppRoutes.exportar),
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: AppColors.textoPrincipal),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         title: const Text('Exportar Reportes'),
       ),
       body: SingleChildScrollView(

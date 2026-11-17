@@ -11,10 +11,12 @@ import '../models/registro_fisicoquimico.dart';
 /// con la estructura y diseño fiel de los formatos de la PTAP SENA.
 class PdfExportService {
   static final DateFormat _formatoFecha = DateFormat('dd/MM/yyyy');
-  static const PdfColor _verdeSena = PdfColor.fromInt(0xFF39A900);
-  static const PdfColor _verdeOscuro = PdfColor.fromInt(0xFF007A33);
-  static const PdfColor _grisEncabezado = PdfColor.fromInt(0xFFECEFF1);
-  static const PdfColor _alertaRojo = PdfColor.fromInt(0xFFD32F2F);
+  static const PdfColor _azulMarino = PdfColor.fromInt(0xFF0B3B7A);
+  static const PdfColor _azulPrimario = PdfColor.fromInt(0xFF1565C0);
+  static const PdfColor _grisEncabezado = PdfColor.fromInt(0xFFF3F6FA);
+  static const PdfColor _alertaRojo = PdfColor.fromInt(0xFFE53935);
+  static const PdfColor _verdeSena = _azulPrimario;
+  static const PdfColor _verdeOscuro = _azulMarino;
 
   // ---------------------------------------------------------------------------
   // 1. FORMATO DO-F-070: CALIDAD FISICOQUÍMICA DEL AGUA

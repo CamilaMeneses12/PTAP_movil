@@ -5,10 +5,8 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../auth/providers/auth_provider.dart';
-import '../../common/widgets/app_drawer.dart';
 
-/// Dashboard independiente donde se despliegan exclusivamente las tarjetas
-/// de los módulos autorizados según el rol del usuario (Administrador, Operario o Consultor SIGA).
+/// Dashboard de módulos
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
@@ -21,21 +19,12 @@ class DashboardScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppColors.fondoGeneral,
-      drawer: const AppDrawer(rutaActual: AppRoutes.dashboard),
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: AppColors.textoPrincipal),
+          onPressed: () => context.pop(),
+        ),
         title: const Text('Dashboard de Módulos'),
-        actions: [
-          IconButton(
-            tooltip: 'Ir a Inicio',
-            icon: const Icon(Icons.home_outlined),
-            onPressed: () => context.go(AppRoutes.home),
-          ),
-          IconButton(
-            tooltip: 'Mi Perfil',
-            icon: const Icon(Icons.account_circle_outlined),
-            onPressed: () => context.push(AppRoutes.perfil),
-          ),
-        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(18.0),

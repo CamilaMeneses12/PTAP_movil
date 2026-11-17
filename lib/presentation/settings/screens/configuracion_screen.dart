@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/routes/app_routes.dart';
 import '../../../core/utils/supabase_config.dart';
-import '../../common/widgets/app_drawer.dart';
 
 /// Pantalla de configuración del sistema PTAP
 class ConfiguracionScreen extends StatefulWidget {
@@ -23,16 +21,12 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.fondoGeneral,
-      drawer: const AppDrawer(rutaActual: AppRoutes.configuracion),
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: AppColors.textoPrincipal),
+          onPressed: () => context.pop(),
+        ),
         title: const Text('Configuración'),
-        actions: [
-          IconButton(
-            tooltip: 'Ir a Inicio',
-            icon: const Icon(Icons.home_outlined),
-            onPressed: () => context.go(AppRoutes.home),
-          ),
-        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),

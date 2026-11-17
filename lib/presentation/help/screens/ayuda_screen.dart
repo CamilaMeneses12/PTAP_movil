@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/routes/app_routes.dart';
-import '../../common/widgets/app_drawer.dart';
 
 /// Pantalla de ayuda, manual técnico y normatividad para el operario y auditor
 class AyudaScreen extends StatelessWidget {
@@ -12,16 +10,12 @@ class AyudaScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.fondoGeneral,
-      drawer: const AppDrawer(rutaActual: AppRoutes.ayuda),
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: AppColors.textoPrincipal),
+          onPressed: () => context.pop(),
+        ),
         title: const Text('Ayuda y Soporte'),
-        actions: [
-          IconButton(
-            tooltip: 'Ir a Inicio',
-            icon: const Icon(Icons.home_outlined),
-            onPressed: () => context.go(AppRoutes.home),
-          ),
-        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),

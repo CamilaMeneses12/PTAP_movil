@@ -9,6 +9,9 @@ class BalanceMedidores {
     required this.consumoMacromedidor,
     required this.aguaNoRegistrada,
   });
+
+  double get porcentajePerdida =>
+      consumoMacromedidor > 0 ? (aguaNoRegistrada / consumoMacromedidor) * 100 : 0.0;
 }
 
 /// Fórmulas de cálculo del formato "Registro de medidores de Agua":

@@ -1,360 +1,604 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/routes/app_routes.dart';
-import '../../admin/providers/admin_provider.dart';
+import '../../alerts/providers/alertas_provider.dart';
 import '../../auth/providers/auth_provider.dart';
-import '../../common/widgets/app_drawer.dart';
-import '../../common/widgets/banner_bienvenida.dart';
-import '../../common/widgets/tarjeta_metrica.dart';
+import '../../common/widgets/banner_estado_planta.dart';
+import '../../common/widgets/chip_estado.dart';
+import '../../common/widgets/tarjeta_alerta.dart';
+import '../../common/widgets/tarjeta_kpi.dart';
 import '../../flow/providers/caudal_provider.dart';
 import '../../history/providers/historial_provider.dart';
 import '../../meters/providers/medidores_provider.dart';
 import '../../physicochemical/providers/fisicoquimico_provider.dart';
 
-/// Página Principal informativa personalizada según el rol del usuario.
-/// Muestra bienvenida institucional, estado del sistema, indicadores en tiempo real
-/// y actividad reciente. (Las tarjetas de módulos se encuentran exclusivamente en el Dashboard).
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+  final void Function(int indice)? alCambiarPestana;
 
-  Color _obtenerColorRol(String rol) {
-    // Identidad unificada basada en referencia.png para todos los perfiles
-    return AppColors.azulTecnologico;
-  }
-
-  String _obtenerTextoRol(String rol) {
-    switch (rol) {
-      case 'administrador':
-        return 'Administrador';
-      case 'operario':
-        return 'Operario PTAP';
-      case 'consultor_siga':
-        return 'Consultor SIGA';
-      default:
-        return rol;
-    }
-  }
+  const HomeScreen({super.key, this.alCambiarPestana});
 
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<SesionUsuarioProvider>();
     final perfil = authProvider.perfil;
-    final rol = perfil?.rol ?? 'operario';
-    final rolColor = _obtenerColorRol(rol);
-    final rolTexto = _obtenerTextoRol(rol);
+    final nombre = perfil != null ? perfil.nombreCompleto.split(' ').first : 'Andrea';
+    final puedeEditar = perfil?.puedeEditar ?? false;
+    final esAdmin = perfil?.esAdministrador ?? false;
 
-    // Datos reales de los proveedores
-    final fisicoquimicoP = context.watch<FisicoquimicoProvider>();
-    final medidoresP = context.watch<MedidoresProvider>();
-    final caudalP = context.watch<CaudalProvider>();
-    final historialP = context.watch<HistorialProvider>();
-    final adminP = context.watch<AdminProvider>();
-
-    final totalFisicoquimicos = fisicoquimicoP.registros.length;
-    final totalMedidores = medidoresP.jornadas.length;
-    final totalAforos = caudalP.aforos.length;
-    final totalRegistros = totalFisicoquimicos + totalMedidores + totalAforos;
-    final totalUsuariosActivos = adminP.usuarios.where((u) => u.activo).length;
-
-    // Último caudal registrado
-    final ultimoCaudal = caudalP.aforos.isNotEmpty
-        ? '${caudalP.aforos.first.caudalLS.toStringAsFixed(1)} L/s'
-        : '0.0 L/s';
-
-    // Actividad reciente (los 5 registros más recientes del historial)
-    final ultimosMovimientos = historialP.todosLosItems.take(5).toList();
+    final alertasProv = context.watch<AlertasProvider>();
+    final historialProv = context.watch<HistorialProvider>();
+    final fisicoProv = context.watch<FisicoquimicoProvider>();
+    final caudalProv = context.watch<CaudalProvider>();
+    final medidoresProv = context.watch<MedidoresProvider>();
 
     return Scaffold(
       backgroundColor: AppColors.fondoGeneral,
-      drawer: const AppDrawer(rutaActual: AppRoutes.home),
-      appBar: AppBar(
-        title: const Text('PTAP'),
-        actions: [
-          Builder(
-            builder: (ctx) => IconButton(
-              tooltip: 'Módulos de la Planta',
-              icon: const Icon(Icons.dashboard_customize_outlined),
-              onPressed: () => Scaffold.of(ctx).openDrawer(),
-            ),
-          ),
-          IconButton(
-            tooltip: 'Mi Perfil',
-            icon: const Icon(Icons.account_circle_outlined),
-            onPressed: () => context.push(AppRoutes.perfil),
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          await Future.wait([
-            fisicoquimicoP.cargarRegistros(),
-            medidoresP.cargarJornadas(),
-            caudalP.cargarAforos(),
-            historialP.cargarHistorial(),
-          ]);
-        },
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(18.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+      body: SafeArea(
+        child: RefreshIndicator(
+          color: AppColors.azulPrimario,
+          onRefresh: () async {
+            await Future.wait([
+              fisicoProv.cargarRegistros(),
+              medidoresProv.cargarJornadas(),
+              caudalProv.cargarAforos(),
+              historialProv.cargarHistorial(),
+            ]);
+          },
+          child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             children: [
-              // 1. Bienvenida Institucional con imagen dibujo_app
-              BannerBienvenida(
-                nombreUsuario: perfil?.nombreCompleto ?? 'Usuario',
-                rolTexto: rolTexto,
-                rolColor: rolColor,
-              ),
-              const SizedBox(height: 18),
-
-              // 2. Acceso destacado a Módulos del Sistema en el Menú Lateral
-              Builder(
-                builder: (ctx) => Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.blanco,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.azulTecnologico.withAlpha(90)),
-                    boxShadow: AppColors.sombraSuave,
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: AppColors.azulInstitucional,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(Icons.dashboard_customize, color: Colors.white, size: 22),
-                      ),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'Módulos del Sistema',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textoPrincipal,
-                              ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              'Abre el menú lateral para acceder a los módulos',
-                              style: TextStyle(fontSize: 11, color: AppColors.textoSecundario),
-                            ),
-                          ],
-                        ),
-                      ),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.azulInstitucional,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          minimumSize: Size.zero,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        onPressed: () => Scaffold.of(ctx).openDrawer(),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text('Ver', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                            SizedBox(width: 4),
-                            Icon(Icons.menu_open, size: 14),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // 3. Estado General de la Planta
-              const Row(
-                children: [
-                  Icon(Icons.insights, size: 20, color: AppColors.azulInstitucional),
-                  SizedBox(width: 8),
-                  Text(
-                    'Estado General de la Planta',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textoPrincipal,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // Tarjetas de Métricas Estadísticas Reales (distribución uniforme y adaptativa)
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final esAncho = constraints.maxWidth > 580;
-                  final columnas = esAncho ? 4 : 2;
-                  final aspect = esAncho ? 1.15 : 1.10;
-
-                  return GridView.count(
-                    crossAxisCount: columnas,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: aspect,
-                    children: [
-                      TarjetaMetrica(
-                        titulo: 'Total Registros',
-                        valor: '$totalRegistros',
-                        subtitulo: 'Consolidado PTAP',
-                        icono: Icons.folder_open_outlined,
-                        color: AppColors.azulInstitucional,
-                        onTap: () => context.push(AppRoutes.historial),
-                      ),
-                      TarjetaMetrica(
-                        titulo: 'Calidad Agua (DO-F-070)',
-                        valor: '$totalFisicoquimicos',
-                        subtitulo: 'Monitoreos',
-                        icono: Icons.science_outlined,
-                        color: AppColors.turquesa,
-                        onTap: () => context.push(AppRoutes.fisicoquimicos),
-                      ),
-                      TarjetaMetrica(
-                        titulo: 'Jornadas Medidores',
-                        valor: '$totalMedidores',
-                        subtitulo: 'Balances hídricos',
-                        icono: Icons.speed_outlined,
-                        color: AppColors.azulTecnologico,
-                        onTap: () => context.push(AppRoutes.medidores),
-                      ),
-                      if (perfil?.esAdministrador ?? false)
-                        TarjetaMetrica(
-                          titulo: 'Usuarios Activos',
-                          valor: '$totalUsuariosActivos',
-                          subtitulo: 'Personal planta',
-                          icono: Icons.people_alt_outlined,
-                          color: AppColors.azulMarino,
-                          onTap: () => context.push(AppRoutes.admin),
-                        )
-                      else
-                        TarjetaMetrica(
-                          titulo: 'Caudal La Seca',
-                          valor: ultimoCaudal,
-                          subtitulo: '$totalAforos aforos',
-                          icono: Icons.water_outlined,
-                          color: AppColors.azulMarino,
-                          onTap: () => context.push(AppRoutes.caudal),
-                        ),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 22),
-
-              // 4. Actividad Reciente del Sistema
+              // 1. Header institucional fiel a Figma (Ubicación, Saludo y Campana con Badge)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Row(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.history, size: 20, color: AppColors.azulInstitucional),
-                      SizedBox(width: 8),
+                      Row(
+                        children: [
+                          const Icon(Icons.water_drop_outlined, size: 12, color: AppColors.turquesa),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${perfil?.plantaNombre ?? "PTAP Villa Clara"} · Turno A',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textoSecundario,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
                       Text(
-                        'Actividad Reciente',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                        'Hola, $nombre',
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
                           color: AppColors.textoPrincipal,
+                          letterSpacing: -0.4,
                         ),
                       ),
                     ],
                   ),
-                  TextButton(
-                    onPressed: () => context.push(AppRoutes.historial),
-                    child: const Text('Ver todo', style: TextStyle(fontSize: 13)),
+
+                  // Botón campana de notificaciones con insignia de alertas activas
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: AppColors.blanco,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.bordes),
+                          boxShadow: AppColors.sombraSuave,
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.notifications_none_rounded, size: 22, color: AppColors.azulMarino),
+                          onPressed: () => context.push(AppRoutes.alertas),
+                        ),
+                      ),
+                      if (alertasProv.activasCount > 0)
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: AppColors.critico,
+                              shape: BoxShape.circle,
+                            ),
+                            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                            child: Text(
+                              '${alertasProv.activasCount}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
 
-              if (ultimosMovimientos.isEmpty)
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: AppColors.blanco,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.bordes),
-                  ),
-                  child: const Center(
-                    child: Text(
-                      'No hay actividades recientes registradas.',
-                      style: TextStyle(color: AppColors.textoSecundario, fontSize: 13),
+              const SizedBox(height: 14),
+
+              // 2. Banner de estado de la planta con ondas
+              BannerEstadoPlanta(
+                estado: alertasProv.criticasCount > 0
+                    ? TipoEstadoPlanta.enAlerta
+                    : TipoEstadoPlanta.operativa,
+                eficiencia: '95,6 %',
+                turbidez: '0,42 NTU',
+                cloro: '1,1 mg/L',
+              ),
+
+              const SizedBox(height: 18),
+
+              // 3. Indicadores principales (Grid 2x2)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Indicadores principales',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textoPrincipal,
                     ),
                   ),
-                )
-              else
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: ultimosMovimientos.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final item = ultimosMovimientos[index];
-                    final fecha = DateFormat('dd/MM/yyyy').format(item.fecha);
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.turquesaFondo,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.sensors_rounded, size: 12, color: AppColors.turquesa),
+                        SizedBox(width: 3),
+                        Text(
+                          'En vivo',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.turquesa,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
 
-                    return Card(
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: const BorderSide(color: AppColors.bordes, width: 1),
-                      ),
-                      child: ListTile(
-                        isThreeLine: true,
-                        dense: true,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-                        leading: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: item.tieneAlerta
-                                ? AppColors.alertaFondo
-                                : AppColors.azulClaro,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            item.tieneAlerta
-                                ? Icons.warning_amber_rounded
-                                : Icons.check_circle_outline,
-                            size: 20,
-                            color: item.tieneAlerta
-                                ? AppColors.alerta
-                                : AppColors.azulInstitucional,
-                          ),
-                        ),
-                        title: Text(
-                          item.titulo,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                        ),
-                        subtitle: Text(
-                          '${item.subtitulo}\nOperario: ${item.responsable}',
-                          style: const TextStyle(fontSize: 11, color: AppColors.textoSecundario),
-                        ),
-                        trailing: Text(
-                          '$fecha\n${item.hora}',
-                          textAlign: TextAlign.end,
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textoSecundario),
-                        ),
-                      ),
-                    );
-                  },
+              // Grid 2x2 de tarjetas KPI
+              Row(
+                children: [
+                  Expanded(
+                    child: TarjetaKpi(
+                      titulo: 'Caudal de entrada',
+                      valor: '128,4',
+                      unidad: 'L/s',
+                      icono: Icons.arrow_downward_rounded,
+                      variacion: '+2,1 %',
+                      variacionPositiva: true,
+                      notaRango: 'Rango 110–140 L/s',
+                      alPulsar: () => alCambiarPestana?.call(1),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TarjetaKpi(
+                      titulo: 'Caudal de salida',
+                      valor: '122,7',
+                      unidad: 'L/s',
+                      icono: Icons.arrow_upward_rounded,
+                      variacion: '+1,6 %',
+                      variacionPositiva: true,
+                      notaRango: 'Rango 105–135 L/s',
+                      alPulsar: () => alCambiarPestana?.call(1),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: TarjetaKpi(
+                      titulo: 'Volumen tratado hoy',
+                      valor: '4.286',
+                      unidad: 'm³',
+                      icono: Icons.water_drop_outlined,
+                      variacion: '+2,8 %',
+                      variacionPositiva: true,
+                      notaRango: 'Meta 4.000 m³/día',
+                      alPulsar: () => alCambiarPestana?.call(2),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TarjetaKpi(
+                      titulo: 'Presión de red',
+                      valor: '3,4',
+                      unidad: 'bar',
+                      icono: Icons.speed_rounded,
+                      notaRango: 'Rango 2,8–4,0 bar',
+                      alPulsar: () => alCambiarPestana?.call(1),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 14),
+
+              // 4. Tarjeta "Nivel de almacenamiento" con barra de progreso
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.blanco,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.bordes),
+                  boxShadow: AppColors.sombraSuave,
                 ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Nivel de almacenamiento',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textoPrincipal,
+                              ),
+                            ),
+                            Text(
+                              'Tanque principal · 2.500 m³',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textoSecundario,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          '78 %',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textoPrincipal,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Barra de progreso de nivel
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: LinearProgressIndicator(
+                        value: 0.78,
+                        minHeight: 8,
+                        backgroundColor: AppColors.fondoGeneral,
+                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.turquesa),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    const Text(
+                      '1.950 m³ disponibles · Mín. operativo 40 % · Autonomía 4.4 h',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textoSecundario,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 18),
+
+              // 5. Comportamiento del caudal (últimas 24 h)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Comportamiento del caudal',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textoPrincipal,
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () => alCambiarPestana?.call(1),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Detalle',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.azulPrimario,
+                          ),
+                        ),
+                        Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.azulPrimario),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // Gráfica de Líneas Entrada vs Salida
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.blanco,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.bordes),
+                  boxShadow: AppColors.sombraSuave,
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppColors.azulPrimario, shape: BoxShape.circle)),
+                        const SizedBox(width: 4),
+                        const Text('Entrada', style: TextStyle(fontSize: 11, color: AppColors.textoSecundario)),
+                        const SizedBox(width: 14),
+                        Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppColors.turquesa, shape: BoxShape.circle)),
+                        const SizedBox(width: 4),
+                        const Text('Salida', style: TextStyle(fontSize: 11, color: AppColors.textoSecundario)),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      height: 130,
+                      child: LineChart(
+                        LineChartData(
+                          gridData: const FlGridData(show: false),
+                          titlesData: FlTitlesData(
+                            leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                            bottomTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 18,
+                                getTitlesWidget: (value, meta) {
+                                  switch (value.toInt()) {
+                                    case 0:
+                                      return const Text('00h', style: TextStyle(fontSize: 9, color: AppColors.textoSecundario));
+                                    case 3:
+                                      return const Text('06h', style: TextStyle(fontSize: 9, color: AppColors.textoSecundario));
+                                    case 6:
+                                      return const Text('12h', style: TextStyle(fontSize: 9, color: AppColors.textoSecundario));
+                                    case 9:
+                                      return const Text('18h', style: TextStyle(fontSize: 9, color: AppColors.textoSecundario));
+                                    case 11:
+                                      return const Text('24h', style: TextStyle(fontSize: 9, color: AppColors.textoSecundario));
+                                  }
+                                  return const SizedBox.shrink();
+                                },
+                              ),
+                            ),
+                          ),
+                          borderData: FlBorderData(show: false),
+                          minX: 0,
+                          maxX: 11,
+                          minY: 90,
+                          maxY: 150,
+                          lineBarsData: [
+                            LineChartBarData(
+                              spots: const [
+                                FlSpot(0, 112),
+                                FlSpot(2, 118),
+                                FlSpot(4, 126),
+                                FlSpot(6, 138),
+                                FlSpot(8, 122),
+                                FlSpot(11, 128.4),
+                              ],
+                              isCurved: true,
+                              curveSmoothness: 0.35,
+                              color: AppColors.azulPrimario,
+                              barWidth: 2.2,
+                              dotData: const FlDotData(show: false),
+                            ),
+                            LineChartBarData(
+                              spots: const [
+                                FlSpot(0, 108),
+                                FlSpot(2, 114),
+                                FlSpot(4, 120),
+                                FlSpot(6, 131),
+                                FlSpot(8, 117),
+                                FlSpot(11, 122.7),
+                              ],
+                              isCurved: true,
+                              curveSmoothness: 0.35,
+                              color: AppColors.turquesa,
+                              barWidth: 2.2,
+                              dotData: const FlDotData(show: false),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 18),
+
+              // 6. Alertas recientes
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Alertas recientes',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textoPrincipal,
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () => context.push(AppRoutes.alertas),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Ver todas',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.azulPrimario,
+                          ),
+                        ),
+                        Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.azulPrimario),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              ...alertasProv.activas.take(2).map(
+                    (a) => TarjetaAlerta(
+                      titulo: a.titulo,
+                      descripcion: a.descripcion,
+                      severidad: a.severidad,
+                      hora: a.hora,
+                      alPulsar: () => context.push(AppRoutes.alertas),
+                    ),
+                  ),
+
+              const SizedBox(height: 14),
+
+              // 7. Botón flotante para nuevo registro si puede editar
+              if (puedeEditar) ...[
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _mostrarMenuNuevoRegistro(context),
+                    icon: const Icon(Icons.add_rounded, size: 20),
+                    label: const Text('Registrar medición en planta'),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
+
+              // 8. Si es Administrador: Tarjeta de estado de usuarios y auditoría
+              if (esAdmin) ...[
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.azulClaro.withAlpha(100),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.bordes),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Panel de Administración',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.azulMarino),
+                          ),
+                          Text(
+                            'Gestión de usuarios y catálogos normativos',
+                            style: TextStyle(fontSize: 11, color: AppColors.textoSecundario),
+                          ),
+                        ],
+                      ),
+                      ElevatedButton(
+                        onPressed: () => context.push(AppRoutes.admin),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(80, 34),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          backgroundColor: AppColors.azulMarino,
+                        ),
+                        child: const Text('Gestionar', style: TextStyle(fontSize: 11)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 24),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  void _mostrarMenuNuevoRegistro(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      backgroundColor: AppColors.blanco,
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Nuevo Registro en Planta',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textoPrincipal),
+            ),
+            const SizedBox(height: 14),
+            ListTile(
+              leading: const Icon(Icons.science_outlined, color: AppColors.azulPrimario),
+              title: const Text('Análisis Fisicoquímico (DO-F-070)'),
+              subtitle: const Text('pH, cloro, turbidez y color'),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push(AppRoutes.fisicoquimicoNuevo);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.speed_outlined, color: AppColors.turquesa),
+              title: const Text('Lectura de Medidores'),
+              subtitle: const Text('Balance y pérdidas de agua'),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push(AppRoutes.medidoresNuevo);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.water_outlined, color: AppColors.azulMarino),
+              title: const Text('Aforo de Caudal Quebrada La Seca'),
+              subtitle: const Text('Método del flotador'),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push(AppRoutes.caudalNuevo);
+              },
+            ),
+          ],
         ),
       ),
     );

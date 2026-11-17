@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 
-/// Configuración de tema global unificado para PTAP basado en referencia.png
-/// Aplica para todos los perfiles (Administrador, Operario y Consultor SIGA)
+/// Configuración de tema global unificado para PTAP Monitor – Fiel al Figma
 class AppTheme {
   static ThemeData get temaClaro {
     return ThemeData(
       useMaterial3: true,
+      fontFamily: 'Roboto', // Modern sans-serif default on Flutter/Android
       colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.azulInstitucional,
-        primary: AppColors.azulInstitucional,
+        seedColor: AppColors.azulPrimario,
+        primary: AppColors.azulPrimario,
         onPrimary: AppColors.blanco,
-        secondary: AppColors.azulTecnologico,
+        secondary: AppColors.turquesa,
         onSecondary: AppColors.blanco,
-        tertiary: AppColors.turquesa,
+        tertiary: AppColors.azulMarino,
         surface: AppColors.blanco,
         onSurface: AppColors.textoPrincipal,
-        error: AppColors.error,
+        error: AppColors.critico,
         onError: AppColors.blanco,
       ),
       scaffoldBackgroundColor: AppColors.fondoGeneral,
@@ -26,18 +26,18 @@ class AppTheme {
         headlineLarge: TextStyle(
           color: AppColors.textoPrincipal,
           fontSize: 24,
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w700,
           letterSpacing: -0.4,
         ),
         headlineMedium: TextStyle(
           color: AppColors.textoPrincipal,
           fontSize: 20,
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w700,
           letterSpacing: -0.2,
         ),
         titleLarge: TextStyle(
           color: AppColors.textoPrincipal,
-          fontSize: 17,
+          fontSize: 18,
           fontWeight: FontWeight.w700,
         ),
         titleMedium: TextStyle(
@@ -57,29 +57,29 @@ class AppTheme {
         ),
         labelLarge: TextStyle(
           fontSize: 14,
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w600,
         ),
       ),
 
-      // Barra superior institucional unificada
+      // Barra superior institucional
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.azulMarino,
-        foregroundColor: AppColors.blanco,
+        backgroundColor: AppColors.fondoGeneral,
+        foregroundColor: AppColors.textoPrincipal,
         elevation: 0,
         centerTitle: true,
         titleTextStyle: TextStyle(
           fontSize: 17,
           fontWeight: FontWeight.w700,
-          color: AppColors.blanco,
-          letterSpacing: 0.2,
+          color: AppColors.textoPrincipal,
+          letterSpacing: -0.2,
         ),
-        iconTheme: IconThemeData(color: AppColors.blanco),
+        iconTheme: IconThemeData(color: AppColors.textoPrincipal),
       ),
 
-      // Botones principales elevados estilo referencia.png
+      // Botones principales (Radio 12-14, azul primario)
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.azulInstitucional,
+          backgroundColor: AppColors.azulPrimario,
           foregroundColor: AppColors.blanco,
           elevation: 0,
           minimumSize: const Size.fromHeight(48),
@@ -89,8 +89,7 @@ class AppTheme {
           ),
           textStyle: const TextStyle(
             fontSize: 15,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 0.2,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
@@ -98,10 +97,10 @@ class AppTheme {
       // Botones con contorno
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.azulInstitucional,
+          foregroundColor: AppColors.azulPrimario,
           minimumSize: const Size.fromHeight(48),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          side: const BorderSide(color: AppColors.azulTecnologico, width: 1.3),
+          side: const BorderSide(color: AppColors.bordes, width: 1.2),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
@@ -112,10 +111,10 @@ class AppTheme {
         ),
       ),
 
-      // Botones de texto (enlaces interactivos)
+      // Botones de texto
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: AppColors.azulTecnologico,
+          foregroundColor: AppColors.azulPrimario,
           textStyle: const TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
@@ -123,30 +122,30 @@ class AppTheme {
         ),
       ),
 
-      // Campos de entrada / Formularios estilo referencia.png
+      // Campos de entrada / Formularios estilo Figma
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.blanco,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.bordes, width: 1.2),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.bordes, width: 1.2),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.azulTecnologico, width: 1.6),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.azulPrimario, width: 1.6),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.error, width: 1.2),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.critico, width: 1.2),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.error, width: 1.6),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.critico, width: 1.6),
         ),
         labelStyle: const TextStyle(
           fontSize: 14,
@@ -154,41 +153,33 @@ class AppTheme {
         ),
         hintStyle: const TextStyle(
           fontSize: 13,
-          color: Color(0xFF8395A7),
+          color: Color(0xFF94A3B8),
         ),
-        prefixIconColor: AppColors.azulTecnologico,
+        prefixIconColor: AppColors.textoSecundario,
       ),
 
-      // Tarjetas modernas estilo referencia.png
+      // Tarjetas modernas estilo Figma (Radio 16, sin sombra pesada, borde sutil)
       cardTheme: CardThemeData(
         color: AppColors.blanco,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: AppColors.bordes, width: 1.2),
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppColors.bordes, width: 1.0),
         ),
       ),
 
-      // Divisores
+      // Divisores sutiles
       dividerTheme: const DividerThemeData(
         color: AppColors.bordes,
         thickness: 1,
         space: 24,
       ),
 
-      // Indicadores de pestañas
-      tabBarTheme: const TabBarThemeData(
-        indicatorColor: AppColors.turquesa,
-        labelColor: AppColors.blanco,
-        unselectedLabelColor: Color(0xFFB0C7D8),
-        indicatorSize: TabBarIndicatorSize.tab,
-      ),
-
       // Floating Action Button
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: AppColors.azulInstitucional,
+        backgroundColor: AppColors.azulPrimario,
         foregroundColor: AppColors.blanco,
-        elevation: 2,
+        elevation: 3,
       ),
     );
   }

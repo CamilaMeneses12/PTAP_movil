@@ -7,7 +7,6 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../auth/providers/auth_provider.dart';
-import '../../common/widgets/app_drawer.dart';
 import '../providers/caudal_provider.dart';
 
 class CaudalDashboardScreen extends StatefulWidget {
@@ -36,8 +35,11 @@ class _CaudalDashboardScreenState extends State<CaudalDashboardScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.fondoGeneral,
-      drawer: const AppDrawer(rutaActual: AppRoutes.caudal),
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: AppColors.textoPrincipal),
+          onPressed: () => context.pop(),
+        ),
         title: const Text(AppStrings.moduloCaudal),
       ),
       body: SafeArea(

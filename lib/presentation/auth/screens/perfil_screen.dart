@@ -2,12 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_strings.dart';
 import '../../../core/routes/app_routes.dart';
-import '../../common/widgets/app_drawer.dart';
 import '../providers/auth_provider.dart';
 
-/// Pantalla moderna y elegante de perfil de usuario y permisos
 class PerfilScreen extends StatefulWidget {
   const PerfilScreen({super.key});
 
@@ -16,348 +13,466 @@ class PerfilScreen extends StatefulWidget {
 }
 
 class _PerfilScreenState extends State<PerfilScreen> {
-  final _nombreController = TextEditingController();
-  bool _editando = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final perfil = context.read<SesionUsuarioProvider>().perfil;
-    _nombreController.text = perfil?.nombreCompleto ?? '';
-  }
-
-  @override
-  void dispose() {
-    _nombreController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _guardarCambios() async {
-    final authProvider = context.read<SesionUsuarioProvider>();
-    final nuevoNombre = _nombreController.text.trim();
-    if (nuevoNombre.isEmpty) return;
-
-    final exito = await authProvider.actualizarNombre(nuevoNombre);
-    if (mounted) {
-      if (exito) {
-        setState(() => _editando = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Nombre actualizado con éxito.'),
-            backgroundColor: AppColors.verdeAmbiental,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(authProvider.mensajeError ?? 'Error al actualizar.'),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
-      }
-    }
-  }
+  bool _notificacionesPush = true;
+  bool _alertasSms = true;
 
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<SesionUsuarioProvider>();
     final perfil = authProvider.perfil;
-    final rol = perfil?.rol ?? 'operario';
+    final esAdmin = perfil?.esAdministrador ?? false;
+    final nombre = perfil?.nombreCompleto ?? 'Andrea Ríos';
 
-    String rolEtiqueta = AppStrings.rolOperario;
-    const Color rolColor = AppColors.azulInstitucional;
-    String descripcionPermisos =
-        'Captura y edición de parámetros fisicoquímicos, lecturas de medidores y aforos de caudal en campo.';
+    // Iniciales
+    final partes = nombre.trim().split(' ');
+    String iniciales = 'AR';
+    if (partes.length >= 2) {
+      iniciales = '${partes[0][0]}${partes[1][0]}'.toUpperCase();
+    } else if (partes.isNotEmpty && partes[0].isNotEmpty) {
+      iniciales = partes[0].substring(0, partes[0].length >= 2 ? 2 : 1).toUpperCase();
+    }
 
-    if (rol == 'administrador') {
-      rolEtiqueta = AppStrings.rolAdmin;
-      descripcionPermisos =
-          'Control total del sistema: gestión de usuarios, catálogo de medidores, calibración de rangos y todos los registros.';
-    } else if (rol == 'consultor_siga') {
-      rolEtiqueta = AppStrings.rolConsultorSiga;
-      descripcionPermisos =
-          'Acceso de solo consulta, auditoría de procesos y exportación de reportes oficiales en PDF y Excel para el SIGA.';
+    String rolTexto = 'Operadora de planta · Turno A';
+    if (perfil?.esAdministrador ?? false) {
+      rolTexto = 'Administrador general del sistema';
+    } else if (perfil?.esConsultorSiga ?? false) {
+      rolTexto = 'Consultor de auditoría SIGA';
     }
 
     return Scaffold(
       backgroundColor: AppColors.fondoGeneral,
-      drawer: const AppDrawer(rutaActual: AppRoutes.perfil),
       appBar: AppBar(
-        title: const Text('Mi Perfil'),
-        actions: [
-          IconButton(
-            tooltip: 'Ir a Inicio',
-            icon: const Icon(Icons.home_outlined),
-            onPressed: () => context.go(AppRoutes.home),
+        backgroundColor: AppColors.fondoGeneral,
+        elevation: 0,
+        centerTitle: false,
+        title: const Text(
+          'Perfil',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textoPrincipal,
+            letterSpacing: -0.3,
           ),
-        ],
+        ),
       ),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(20.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           children: [
-            // Cabecera con avatar e insignia
-            Center(
+            // Tarjeta de información del usuario
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.blanco,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.bordes),
+                boxShadow: AppColors.sombraSuave,
+              ),
               child: Column(
                 children: [
-                  CircleAvatar(
-                    radius: 46,
-                    backgroundColor: rolColor.withAlpha(25),
+                  // Avatar circular grande con iniciales
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: AppColors.azulClaro,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.turquesa, width: 2),
+                    ),
+                    alignment: Alignment.center,
                     child: Text(
-                      (perfil?.nombreCompleto.isNotEmpty ?? false)
-                          ? perfil!.nombreCompleto.substring(0, 1).toUpperCase()
-                          : 'U',
-                      style: TextStyle(
-                        fontSize: 34,
-                        fontWeight: FontWeight.bold,
-                        color: rolColor,
+                      iniciales,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.azulMarino,
                       ),
                     ),
                   ),
                   const SizedBox(height: 12),
+
+                  // Nombre
                   Text(
-                    perfil?.nombreCompleto ?? 'Usuario',
+                    nombre,
                     style: const TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w700,
                       color: AppColors.textoPrincipal,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: rolColor.withAlpha(20),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: rolColor.withAlpha(90)),
+                  const SizedBox(height: 3),
+
+                  // Rol
+                  Text(
+                    rolTexto,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textoSecundario,
                     ),
-                    child: Text(
-                      'Rol: $rolEtiqueta',
-                      style: TextStyle(
-                        color: rolColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
+                  ),
+                  const SizedBox(height: 6),
+
+                  // Ubicación
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.location_on_outlined, size: 13, color: AppColors.turquesa),
+                      const SizedBox(width: 4),
+                      Text(
+                        perfil?.plantaNombre ?? 'PTAP Villa Clara',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.textoSecundario,
+                        ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Fila de 3 estadísticas del usuario
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.fondoGeneral,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _ItemEstadisticaPerfil(
+                          valor: '18',
+                          label: 'Turnos este mes',
+                        ),
+                        Container(width: 1, height: 26, color: AppColors.bordes),
+                        _ItemEstadisticaPerfil(
+                          valor: '42',
+                          label: 'Alertas atendidas',
+                        ),
+                        Container(width: 1, height: 26, color: AppColors.bordes),
+                        _ItemEstadisticaPerfil(
+                          valor: '3 años',
+                          label: 'En la planta',
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
 
-            // Tarjeta de información personal
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
+            const SizedBox(height: 20),
+
+            // Sección: UMBRALES DE ALERTA
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'UMBRALES DE ALERTA',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textoSecundario,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                if (esAdmin)
+                  InkWell(
+                    onTap: () => context.push(AppRoutes.admin),
+                    child: const Text(
+                      'Editar límites',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.azulPrimario,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.blanco,
                 borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: AppColors.bordes, width: 1.2),
+                border: Border.all(color: AppColors.bordes),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(18.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
+                children: [
+                  _FilaUmbralAlerta(
+                    icono: Icons.arrow_downward_rounded,
+                    titulo: 'Caudal de entrada',
+                    rango: '110–140 L/s',
+                    esAdmin: esAdmin,
+                    alEditar: () => _editarUmbral(context, 'Caudal de entrada', '110–140 L/s'),
+                  ),
+                  const Divider(height: 1, indent: 48),
+                  _FilaUmbralAlerta(
+                    icono: Icons.arrow_upward_rounded,
+                    titulo: 'Caudal de salida',
+                    rango: '105–135 L/s',
+                    esAdmin: esAdmin,
+                    alEditar: () => _editarUmbral(context, 'Caudal de salida', '105–135 L/s'),
+                  ),
+                  const Divider(height: 1, indent: 48),
+                  _FilaUmbralAlerta(
+                    icono: Icons.speed_rounded,
+                    titulo: 'Presión de red',
+                    rango: '2,8–4,0 bar',
+                    esAdmin: esAdmin,
+                    alEditar: () => _editarUmbral(context, 'Presión de red', '2,8–4,0 bar'),
+                  ),
+                  const Divider(height: 1, indent: 48),
+                  _FilaUmbralAlerta(
+                    icono: Icons.water_rounded,
+                    titulo: 'Nivel mínimo de tanque',
+                    rango: '40 %',
+                    esAdmin: esAdmin,
+                    alEditar: () => _editarUmbral(context, 'Nivel mínimo de tanque', '40 %'),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Sección: PREFERENCIAS
+            const Text(
+              'PREFERENCIAS',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textoSecundario,
+                letterSpacing: 0.8,
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.blanco,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.bordes),
+              ),
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    activeTrackColor: AppColors.turquesa,
+                    secondary: const Icon(Icons.notifications_none_rounded, color: AppColors.textoSecundario),
+                    title: const Text('Notificaciones push', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                    value: _notificacionesPush,
+                    onChanged: (val) => setState(() => _notificacionesPush = val),
+                  ),
+                  const Divider(height: 1, indent: 48),
+                  SwitchListTile(
+                    activeTrackColor: AppColors.turquesa,
+                    secondary: const Icon(Icons.sms_outlined, color: AppColors.textoSecundario),
+                    title: const Text('Alertas críticas por SMS', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                    value: _alertasSms,
+                    onChanged: (val) => setState(() => _alertasSms = val),
+                  ),
+                  const Divider(height: 1, indent: 48),
+                  ListTile(
+                    leading: const Icon(Icons.straighten_rounded, color: AppColors.textoSecundario),
+                    title: const Text('Unidades de medida', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                    trailing: const Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text(
-                          'Datos del Usuario',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textoPrincipal,
-                          ),
-                        ),
-                        IconButton(
-                          icon: Icon(
-                            _editando ? Icons.close : Icons.edit_outlined,
-                            color: AppColors.azulInstitucional,
-                            size: 20,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _editando = !_editando;
-                              if (!_editando) {
-                                _nombreController.text = perfil?.nombreCompleto ?? '';
-                              }
-                            });
-                          },
-                        ),
+                        Text('L/s · m³ · bar', style: TextStyle(fontSize: 12, color: AppColors.textoSecundario)),
+                        SizedBox(width: 4),
+                        Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.textoSecundario),
                       ],
                     ),
-                    const Divider(height: 16),
+                    onTap: () {},
+                  ),
+                ],
+              ),
+            ),
 
-                    if (_editando) ...[
-                      TextFormField(
-                        controller: _nombreController,
-                        decoration: const InputDecoration(
-                          labelText: 'Nombre completo',
-                          prefixIcon: Icon(Icons.person_outline, color: AppColors.azulInstitucional),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.azulInstitucional,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        icon: const Icon(Icons.save_outlined, size: 18),
-                        label: const Text('Guardar Cambios'),
-                        onPressed: _guardarCambios,
-                      ),
-                    ] else ...[
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: AppColors.azulClaro,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(Icons.person_outline, color: AppColors.azulInstitucional, size: 20),
-                        ),
-                        title: const Text('Nombre completo', style: TextStyle(fontSize: 11, color: AppColors.textoSecundario)),
-                        subtitle: Text(
-                          perfil?.nombreCompleto ?? 'No especificado',
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textoPrincipal),
-                        ),
-                      ),
-                    ],
+            const SizedBox(height: 20),
 
+            // Sección: CUENTA
+            const Text(
+              'CUENTA',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textoSecundario,
+                letterSpacing: 0.8,
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.blanco,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.bordes),
+              ),
+              child: Column(
+                children: [
+                  if (esAdmin) ...[
                     ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppColors.azulClaro,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(Icons.email_outlined, color: AppColors.azulInstitucional, size: 20),
+                      leading: const Icon(Icons.admin_panel_settings_outlined, color: AppColors.azulPrimario),
+                      title: const Text(
+                        'Panel de Administración',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.azulMarino),
                       ),
-                      title: const Text('Correo electrónico institucional', style: TextStyle(fontSize: 11, color: AppColors.textoSecundario)),
-                      subtitle: Text(
-                        perfil?.correo ?? '',
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textoPrincipal),
-                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.textoSecundario),
+                      onTap: () => context.push(AppRoutes.admin),
                     ),
+                    const Divider(height: 1, indent: 48),
                   ],
-                ),
+                  ListTile(
+                    leading: const Icon(Icons.lock_outline_rounded, color: AppColors.textoSecundario),
+                    title: const Text('Seguridad y contraseña', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                    trailing: const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.textoSecundario),
+                    onTap: () => context.push(AppRoutes.configuracion),
+                  ),
+                  const Divider(height: 1, indent: 48),
+                  ListTile(
+                    leading: const Icon(Icons.help_outline_rounded, color: AppColors.textoSecundario),
+                    title: const Text('Centro de ayuda y soporte', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                    trailing: const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.textoSecundario),
+                    onTap: () => context.push(AppRoutes.ayuda),
+                  ),
+                  const Divider(height: 1, indent: 48),
+                  ListTile(
+                    leading: const Icon(Icons.logout_rounded, color: AppColors.critico),
+                    title: const Text(
+                      'Cerrar sesión',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.critico),
+                    ),
+                    onTap: () => _confirmarCerrarSesion(context),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Versión institucional al pie
+            const Center(
+              child: Text(
+                'PTAP Monitor · Versión 1.0.0 · SENA Centro de Gestión Agroempresarial',
+                style: TextStyle(fontSize: 10, color: AppColors.textoSecundario),
+                textAlign: TextAlign.center,
               ),
             ),
             const SizedBox(height: 16),
-
-            // Tarjeta de permisos del rol
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: AppColors.bordes, width: 1.2),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(18.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.shield_outlined, color: rolColor, size: 20),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Permisos y Alcance',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textoPrincipal,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      descripcionPermisos,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textoSecundario,
-                        height: 1.35,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _ChipPermiso(
-                          etiqueta: 'Crear Registros',
-                          habilitado: perfil?.puedeEditar ?? false,
-                        ),
-                        _ChipPermiso(
-                          etiqueta: 'Editar Propios',
-                          habilitado: perfil?.puedeEditar ?? false,
-                        ),
-                        _ChipPermiso(
-                          etiqueta: 'Consultar y Exportar',
-                          habilitado: true,
-                        ),
-                        _ChipPermiso(
-                          etiqueta: 'Administrar Catálogos',
-                          habilitado: perfil?.puedeAdministrar ?? false,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
           ],
         ),
       ),
     );
   }
+
+  void _editarUmbral(BuildContext context, String parametro, String rangoActual) {
+    final perfil = context.read<SesionUsuarioProvider>().perfil;
+    if (!(perfil?.esAdministrador ?? false)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Solo el Administrador puede modificar los umbrales de alerta normativos.')),
+      );
+      return;
+    }
+    context.push(AppRoutes.admin);
+  }
+
+  void _confirmarCerrarSesion(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cerrar sesión'),
+        content: const Text('¿Estás seguro de que deseas salir de PTAP Monitor?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await context.read<SesionUsuarioProvider>().cerrarSesion();
+              if (context.mounted) {
+                context.go(AppRoutes.login);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.critico),
+            child: const Text('Cerrar sesión'),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _ChipPermiso extends StatelessWidget {
-  final String etiqueta;
-  final bool habilitado;
+class _ItemEstadisticaPerfil extends StatelessWidget {
+  final String valor;
+  final String label;
 
-  const _ChipPermiso({
-    required this.etiqueta,
-    required this.habilitado,
+  const _ItemEstadisticaPerfil({required this.valor, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          valor,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textoPrincipal,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 10,
+            color: AppColors.textoSecundario,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FilaUmbralAlerta extends StatelessWidget {
+  final IconData icono;
+  final String titulo;
+  final String rango;
+  final bool esAdmin;
+  final VoidCallback alEditar;
+
+  const _FilaUmbralAlerta({
+    required this.icono,
+    required this.titulo,
+    required this.rango,
+    required this.esAdmin,
+    required this.alEditar,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = habilitado ? AppColors.verdeAmbiental : Colors.grey;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withAlpha(20),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withAlpha(70)),
+    return ListTile(
+      leading: Icon(icono, size: 20, color: AppColors.azulPrimario),
+      title: Text(
+        titulo,
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textoPrincipal),
       ),
-      child: Row(
+      trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            habilitado ? Icons.check_circle_outline : Icons.cancel_outlined,
-            size: 14,
-            color: color,
-          ),
-          const SizedBox(width: 5),
           Text(
-            etiqueta,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: color,
-            ),
+            rango,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textoSecundario),
           ),
+          const SizedBox(width: 4),
+          const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.textoSecundario),
         ],
       ),
+      onTap: alEditar,
     );
   }
 }

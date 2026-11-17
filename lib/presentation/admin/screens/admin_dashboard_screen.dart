@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/routes/app_routes.dart';
 import '../../../data/models/parametro_catalogo_modelo.dart';
 import '../../../data/models/usuario_perfil.dart';
-import '../../common/widgets/app_drawer.dart';
 import '../providers/admin_provider.dart';
 
 /// Panel principal de Administración: Usuarios, Catálogo de Medidores y Rangos Normativos
@@ -17,9 +15,13 @@ class AdminDashboardScreen extends StatelessWidget {
       length: 3,
       child: Scaffold(
         backgroundColor: AppColors.fondoGeneral,
-        drawer: const AppDrawer(rutaActual: AppRoutes.admin),
         appBar: AppBar(
-          title: const Text('Administración PTAP'),
+          backgroundColor: AppColors.azulMarino,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Colors.white),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          title: const Text('Administración PTAP', style: TextStyle(color: Colors.white)),
           bottom: const TabBar(
             indicatorColor: AppColors.turquesa,
             labelColor: Colors.white,

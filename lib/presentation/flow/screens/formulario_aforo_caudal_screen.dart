@@ -4,7 +4,9 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/aforo_caudal_modelo.dart';
+import '../../../data/models/alerta_sistema_modelo.dart';
 import '../../../domain/calculations/calculos_caudal.dart';
+import '../../alerts/providers/alertas_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/caudal_provider.dart';
 
@@ -96,11 +98,76 @@ class _FormularioAforoCaudalScreenState
     if (resultado == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Verifique los valores de ancho, distancia y tiempos ingresados.'),
+          content: Text('Verifique los valores de ancho, distancia y tiempos ingresados (deben ser > 0).'),
           backgroundColor: AppColors.error,
         ),
       );
       return;
+    }
+
+    // Validación fuera de rango operativo
+    final fueraDeRango = resultado.caudalLS < 10.0 || resultado.caudalLS > 140.0;
+    if (fueraDeRango) {
+      final confirmar = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: AppColors.advertencia),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text('Caudal Fuera de Rango Operativo', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'El caudal calculado es de ${resultado.caudalLS.toStringAsFixed(2)} L/s.\n\n'
+                '${resultado.caudalLS < 10.0 ? "El caudal es críticamente bajo en la fuente quebrada La Seca; riesgo de estiaje severo." : "El caudal supera la capacidad máxima de derivación y tratamiento."}\n\n'
+                '¿Desea confirmar el registro? Debe ingresar obligatoriamente una observación técnica justificando la novedad.',
+                style: const TextStyle(fontSize: 12, height: 1.4),
+              ),
+            ],
+          ),
+          actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Corregir'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.advertencia),
+              child: const Text('Guardar de todos modos'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmar != true) return;
+      if (!mounted) return;
+
+      if (_observacionesController.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Debe ingresar una observación justificando el caudal fuera de rango.'),
+            backgroundColor: AppColors.critico,
+          ),
+        );
+        return;
+      }
+
+      context.read<AlertasProvider>().agregarAlerta(
+        titulo: 'Caudal en fuente fuera de rango',
+        descripcion: 'Aforo arrojó ${resultado.caudalLS.toStringAsFixed(2)} L/s en Quebrada La Seca.',
+        severidad: SeveridadAlerta.advertencia,
+        parametro: 'Caudal Fuente',
+        valorRegistrado: resultado.caudalLS,
+      );
     }
 
     final authProvider = context.read<SesionUsuarioProvider>();

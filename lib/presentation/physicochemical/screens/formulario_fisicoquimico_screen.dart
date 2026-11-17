@@ -3,9 +3,12 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../data/models/alerta_sistema_modelo.dart';
 import '../../../data/models/registro_fisicoquimico.dart';
 import '../../../domain/validators/validador_rangos.dart';
+import '../../alerts/providers/alertas_provider.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../common/widgets/mensaje_fuera_de_rango.dart';
 import '../providers/fisicoquimico_provider.dart';
 
 class FormularioFisicoquimicoScreen extends StatefulWidget {
@@ -91,85 +94,202 @@ class _FormularioFisicoquimicoScreenState
       double.tryParse(c.text.trim().replaceAll(',', '.'));
 
   // Evalúa si existe algún parámetro fuera de los límites de la Resolución 2115 / DO-F-070
-  List<String> _obtenerAlertasFueraDeRango() {
-    final alertas = <String>[];
+  List<EvaluacionRango> _obtenerEvaluacionesFueraDeRango() {
+    final evals = <EvaluacionRango>[];
 
     // Cruda
     final crudaPh = _parse(_crudaPhController);
     final valCrudaPh = ValidadorRangos.validarPhCruda(crudaPh);
-    if (!valCrudaPh.cumple) alertas.add(valCrudaPh.mensajeAlerta!);
+    if (!valCrudaPh.cumple) evals.add(valCrudaPh);
 
     final crudaTurb = _parse(_crudaTurbidezController);
     final valCrudaTurb = ValidadorRangos.validarTurbidezCruda(crudaTurb);
-    if (!valCrudaTurb.cumple) alertas.add(valCrudaTurb.mensajeAlerta!);
+    if (!valCrudaTurb.cumple) evals.add(valCrudaTurb);
 
     final crudaColor = _parse(_crudaColorController);
     final valCrudaCol = ValidadorRangos.validarColorCruda(crudaColor);
-    if (!valCrudaCol.cumple) alertas.add(valCrudaCol.mensajeAlerta!);
+    if (!valCrudaCol.cumple) evals.add(valCrudaCol);
 
     // Filtrada
     final filtPh = _parse(_filtradaPhController);
     final valFiltPh = ValidadorRangos.validarPhTratada(filtPh, nombre: 'pH Agua Filtrada');
-    if (!valFiltPh.cumple) alertas.add(valFiltPh.mensajeAlerta!);
+    if (!valFiltPh.cumple) evals.add(valFiltPh);
 
     final filtTurb = _parse(_filtradaTurbidezController);
     final valFiltTurb = ValidadorRangos.validarTurbidezTratada(filtTurb, nombre: 'Turbidez Agua Filtrada');
-    if (!valFiltTurb.cumple) alertas.add(valFiltTurb.mensajeAlerta!);
+    if (!valFiltTurb.cumple) evals.add(valFiltTurb);
 
     // Clorada
     final clorPh = _parse(_cloradaPhController);
     final valClorPh = ValidadorRangos.validarPhTratada(clorPh, nombre: 'pH Agua Clorada');
-    if (!valClorPh.cumple) alertas.add(valClorPh.mensajeAlerta!);
+    if (!valClorPh.cumple) evals.add(valClorPh);
 
     final clorTurb = _parse(_cloradaTurbidezController);
     final valClorTurb = ValidadorRangos.validarTurbidezTratada(clorTurb, nombre: 'Turbidez Agua Clorada');
-    if (!valClorTurb.cumple) alertas.add(valClorTurb.mensajeAlerta!);
+    if (!valClorTurb.cumple) evals.add(valClorTurb);
 
     final clorCol = _parse(_cloradaColorController);
     final valClorCol = ValidadorRangos.validarColorAparente(clorCol, nombre: 'Color Aparente Clorada');
-    if (!valClorCol.cumple) alertas.add(valClorCol.mensajeAlerta!);
+    if (!valClorCol.cumple) evals.add(valClorCol);
 
     final clorCloro = _parse(_cloradaCloroController);
     final valClorCloro = ValidadorRangos.validarCloroResidual(clorCloro, nombre: 'Cloro Residual Clorada');
-    if (!valClorCloro.cumple) alertas.add(valClorCloro.mensajeAlerta!);
+    if (!valClorCloro.cumple) evals.add(valClorCloro);
 
     // Puntos de Red
     for (final p in _puntosControl) {
       if (p.ph != null) {
         final v = ValidadorRangos.validarPhTratada(p.ph, nombre: 'pH ${p.areaNombre}');
-        if (!v.cumple) alertas.add(v.mensajeAlerta!);
+        if (!v.cumple) evals.add(v);
       }
       if (p.turbidez != null) {
         final v = ValidadorRangos.validarTurbidezTratada(p.turbidez, nombre: 'Turbidez ${p.areaNombre}');
-        if (!v.cumple) alertas.add(v.mensajeAlerta!);
+        if (!v.cumple) evals.add(v);
       }
       if (p.cloroResidual != null) {
         final v = ValidadorRangos.validarCloroResidual(p.cloroResidual, nombre: 'Cloro ${p.areaNombre}');
-        if (!v.cumple) alertas.add(v.mensajeAlerta!);
+        if (!v.cumple) evals.add(v);
       }
     }
 
-    return alertas;
+    return evals;
+  }
+
+  List<String> _obtenerAlertasFueraDeRango() {
+    return _obtenerEvaluacionesFueraDeRango()
+        .map((e) => e.mensajeCompleto)
+        .toList();
   }
 
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final alertas = _obtenerAlertasFueraDeRango();
-    final hayAlertas = alertas.isNotEmpty;
+    final evaluaciones = _obtenerEvaluacionesFueraDeRango();
+    final hayAlertas = evaluaciones.isNotEmpty;
 
-    // Si hay parámetros fuera de rango, es obligatorio documentar la observación
-    if (hayAlertas && _observacionesController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            '¡Atención! Hay valores fuera de rango. Debe ingresar una observación justificando la anomalía antes de guardar.',
+    // Validación c: Valores fuera de norma pero posibles -> Diálogo modal obligatorio
+    if (hayAlertas) {
+      final confirmar = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: const BoxDecoration(
+                  color: AppColors.advertenciaFondo,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.warning_amber_rounded, color: AppColors.advertencia, size: 24),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Valores fuera de rango',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textoPrincipal),
+                ),
+              ),
+            ],
           ),
-          backgroundColor: AppColors.error,
-          duration: Duration(seconds: 4),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Los siguientes parámetros exceden los límites normativos permitidos (Res. 2115 / DO-F-070):',
+                  style: TextStyle(fontSize: 12, color: AppColors.textoSecundario),
+                ),
+                const SizedBox(height: 10),
+                ...evaluaciones.map(
+                  (eval) => Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: eval.esCritico ? AppColors.criticoFondo : AppColors.advertenciaFondo,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: eval.esCritico ? AppColors.critico : AppColors.advertencia,
+                        width: 1.0,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          eval.esCritico ? 'CRÍTICA' : 'ADVERTENCIA',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: eval.esCritico ? AppColors.critico : AppColors.advertencia,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          eval.mensajeCompleto,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: eval.esCritico ? AppColors.critico : AppColors.advertencia,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  '¿Confirma que estos valores son reales y verificados en laboratorio/campo? Es OBLIGATORIO ingresar una nota de observación.',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textoPrincipal),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Corregir'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.advertencia),
+              child: const Text('Guardar de todos modos'),
+            ),
+          ],
         ),
       );
-      return;
+
+      if (confirmar != true) return;
+      if (!mounted) return;
+
+      if (_observacionesController.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '¡Atención! Debe ingresar obligatoriamente una observación justificando la anomalía antes de guardar.',
+            ),
+            backgroundColor: AppColors.critico,
+            duration: Duration(seconds: 4),
+          ),
+        );
+        return;
+      }
+
+      // Generar alertas en AlertasProvider
+      final alertasProv = context.read<AlertasProvider>();
+      for (final ev in evaluaciones) {
+        alertasProv.agregarAlerta(
+          titulo: 'Parámetro fuera de norma técnica',
+          descripcion: ev.mensajeCompleto,
+          severidad: ev.esCritico ? SeveridadAlerta.critica : SeveridadAlerta.advertencia,
+          parametro: ev.unidad,
+          valorRegistrado: ev.valor,
+        );
+      }
     }
 
     final authProvider = context.read<SesionUsuarioProvider>();
@@ -209,10 +329,10 @@ class _FormularioFisicoquimicoScreenState
           SnackBar(
             content: Text(
               hayAlertas
-                  ? 'Registro guardado con observaciones por valores fuera de rango.'
+                  ? 'Registro guardado con observaciones y alerta generada en el sistema.'
                   : 'Registro de calidad del agua guardado correctamente.',
             ),
-            backgroundColor: hayAlertas ? AppColors.alerta : AppColors.exito,
+            backgroundColor: hayAlertas ? AppColors.advertencia : AppColors.exito,
           ),
         );
         context.pop();
@@ -473,55 +593,94 @@ class _FormularioFisicoquimicoScreenState
                       ),
                       const SizedBox(height: 12),
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
-                            child: TextFormField(
-                              controller: _crudaCaudalController,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(
-                                labelText: 'Caudal entrada',
-                                suffixText: 'L/S',
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                TextFormField(
+                                  controller: _crudaCaudalController,
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Caudal entrada',
+                                    suffixText: 'L/s',
+                                  ),
+                                  onChanged: (_) => setState(() {}),
+                                ),
+                                const IndicadorRangoPermitido(textoRango: '110–140 L/s'),
+                                MensajeFueraDeRango(
+                                  evaluacion: ValidadorRangos.validarCaudalEntrada(_parse(_crudaCaudalController)),
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
-                            child: TextFormField(
-                              controller: _crudaPhController,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(
-                                labelText: 'pH',
-                                hintText: '5.0 - 9.0',
-                              ),
-                              onChanged: (_) => setState(() {}),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                TextFormField(
+                                  controller: _crudaPhController,
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  decoration: const InputDecoration(
+                                    labelText: 'pH',
+                                    hintText: '5.0 - 9.0',
+                                  ),
+                                  onChanged: (_) => setState(() {}),
+                                ),
+                                const IndicadorRangoPermitido(textoRango: '5,0–9,0 pH'),
+                                MensajeFueraDeRango(
+                                  evaluacion: ValidadorRangos.validarPhCruda(_parse(_crudaPhController)),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 10),
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
-                            child: TextFormField(
-                              controller: _crudaTurbidezController,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(
-                                labelText: 'Turbidez entrada',
-                                suffixText: 'UJT',
-                              ),
-                              onChanged: (_) => setState(() {}),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                TextFormField(
+                                  controller: _crudaTurbidezController,
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Turbidez entrada',
+                                    suffixText: 'UJT',
+                                  ),
+                                  onChanged: (_) => setState(() {}),
+                                ),
+                                const IndicadorRangoPermitido(textoRango: 'máx. 10 UJT'),
+                                MensajeFueraDeRango(
+                                  evaluacion: ValidadorRangos.validarTurbidezCruda(_parse(_crudaTurbidezController)),
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
-                            child: TextFormField(
-                              controller: _crudaColorController,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(
-                                labelText: 'Color',
-                                suffixText: 'UPC',
-                              ),
-                              onChanged: (_) => setState(() {}),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                TextFormField(
+                                  controller: _crudaColorController,
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Color',
+                                    suffixText: 'UPC',
+                                  ),
+                                  onChanged: (_) => setState(() {}),
+                                ),
+                                const IndicadorRangoPermitido(textoRango: 'máx. 20 UPC'),
+                                MensajeFueraDeRango(
+                                  evaluacion: ValidadorRangos.validarColorCruda(_parse(_crudaColorController)),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -585,28 +744,47 @@ class _FormularioFisicoquimicoScreenState
                       ),
                       const SizedBox(height: 12),
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
-                            child: TextFormField(
-                              controller: _filtradaPhController,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(
-                                labelText: 'pH filtrada',
-                                hintText: '6.5 - 9.0',
-                              ),
-                              onChanged: (_) => setState(() {}),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                TextFormField(
+                                  controller: _filtradaPhController,
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  decoration: const InputDecoration(
+                                    labelText: 'pH filtrada',
+                                    hintText: '6.5 - 9.0',
+                                  ),
+                                  onChanged: (_) => setState(() {}),
+                                ),
+                                const IndicadorRangoPermitido(textoRango: '6,5–9,0 pH'),
+                                MensajeFueraDeRango(
+                                  evaluacion: ValidadorRangos.validarPhTratada(_parse(_filtradaPhController), nombre: 'pH Agua Filtrada'),
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
-                            child: TextFormField(
-                              controller: _filtradaTurbidezController,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(
-                                labelText: 'Turbidez filtrada',
-                                suffixText: 'NTU',
-                              ),
-                              onChanged: (_) => setState(() {}),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                TextFormField(
+                                  controller: _filtradaTurbidezController,
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Turbidez filtrada',
+                                    suffixText: 'NTU',
+                                  ),
+                                  onChanged: (_) => setState(() {}),
+                                ),
+                                const IndicadorRangoPermitido(textoRango: '0,0–2,0 NTU'),
+                                MensajeFueraDeRango(
+                                  evaluacion: ValidadorRangos.validarTurbidezTratada(_parse(_filtradaTurbidezController), nombre: 'Turbidez Agua Filtrada'),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -645,56 +823,94 @@ class _FormularioFisicoquimicoScreenState
                       ),
                       const SizedBox(height: 12),
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
-                            child: TextFormField(
-                              controller: _cloradaPhController,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(
-                                labelText: 'pH clorada',
-                                hintText: '6.5 - 9.0',
-                              ),
-                              onChanged: (_) => setState(() {}),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                TextFormField(
+                                  controller: _cloradaPhController,
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  decoration: const InputDecoration(
+                                    labelText: 'pH clorada',
+                                    hintText: '6.5 - 9.0',
+                                  ),
+                                  onChanged: (_) => setState(() {}),
+                                ),
+                                const IndicadorRangoPermitido(textoRango: '6,5–9,0 pH'),
+                                MensajeFueraDeRango(
+                                  evaluacion: ValidadorRangos.validarPhTratada(_parse(_cloradaPhController), nombre: 'pH Agua Clorada'),
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
-                            child: TextFormField(
-                              controller: _cloradaTurbidezController,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(
-                                labelText: 'Turbidez',
-                                suffixText: 'NTU',
-                              ),
-                              onChanged: (_) => setState(() {}),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                TextFormField(
+                                  controller: _cloradaTurbidezController,
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Turbidez',
+                                    suffixText: 'NTU',
+                                  ),
+                                  onChanged: (_) => setState(() {}),
+                                ),
+                                const IndicadorRangoPermitido(textoRango: '0,0–2,0 NTU'),
+                                MensajeFueraDeRango(
+                                  evaluacion: ValidadorRangos.validarTurbidezTratada(_parse(_cloradaTurbidezController), nombre: 'Turbidez Agua Clorada'),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 10),
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
-                            child: TextFormField(
-                              controller: _cloradaColorController,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(
-                                labelText: 'Color Aparente',
-                                suffixText: 'UPC',
-                              ),
-                              onChanged: (_) => setState(() {}),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                TextFormField(
+                                  controller: _cloradaColorController,
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Color Aparente',
+                                    suffixText: 'UPC',
+                                  ),
+                                  onChanged: (_) => setState(() {}),
+                                ),
+                                const IndicadorRangoPermitido(textoRango: 'máx. 15 UPC'),
+                                MensajeFueraDeRango(
+                                  evaluacion: ValidadorRangos.validarColorAparente(_parse(_cloradaColorController), nombre: 'Color Aparente Clorada'),
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
-                            child: TextFormField(
-                              controller: _cloradaCloroController,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(
-                                labelText: 'Cloro residual',
-                                suffixText: 'mg/L',
-                              ),
-                              onChanged: (_) => setState(() {}),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                TextFormField(
+                                  controller: _cloradaCloroController,
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Cloro residual',
+                                    suffixText: 'mg/L',
+                                  ),
+                                  onChanged: (_) => setState(() {}),
+                                ),
+                                const IndicadorRangoPermitido(textoRango: '0,3–2,0 mg/L'),
+                                MensajeFueraDeRango(
+                                  evaluacion: ValidadorRangos.validarCloroResidual(_parse(_cloradaCloroController), nombre: 'Cloro Residual Clorada'),
+                                ),
+                              ],
                             ),
                           ),
                         ],

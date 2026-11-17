@@ -1,89 +1,100 @@
 import 'package:flutter/material.dart';
 
-/// Identidad Visual Unificada Oficial de PTAP basada en referencia.png
-/// Aplica para todos los perfiles (Administrador, Operario y Consultor SIGA)
-/// garantizando coherencia, elegancia, modernidad y tecnología del agua.
+/// Paleta Oficial PTAP Monitor – Fiel al diseño de Figma (App Móvil SENA)
+/// ESTRICTAMENTE SIN AMARILLO. Las advertencias usan naranja (#EA7A12).
 class AppColors {
-  // Paleta Principal Unificada (referencia.png)
-  static const Color azulMarino = Color(0xFF093970);        // Encabezados, navegación y títulos principales
-  static const Color azulInstitucional = Color(0xFF084C8D);  // Botones principales y acciones destacadas
-  static const Color azulTecnologico = Color(0xFF0B58A2);    // Elementos interactivos, enlaces e iconos
-  static const Color azulClaro = Color(0xFFEAF2FA);          // Fondos suaves, tarjetas secundarias y selecciones
-  static const Color turquesa = Color(0xFF5E9DE8);           // Azul agua complementario (ondas de referencia.png)
-  static const Color fondoGeneral = Color(0xFFF3F7FC);       // Fondo general de todas las pantallas
-  static const Color blanco = Color(0xFFFFFFFF);             // Tarjetas, formularios y modales
-  static const Color textoPrincipal = Color(0xFF092E58);     // Títulos y contenido de alta legibilidad
-  static const Color textoSecundario = Color(0xFF5D7189);    // Subtítulos y descripciones (gris pizarra azulado)
-  static const Color bordes = Color(0xFFDCE7F2);             // Separadores y contornos limpios de tarjetas
+  // Paleta Principal Oficial Figma
+  static const Color azulMarino = Color(0xFF0B3B7A);        // Encabezados, títulos, ícono y texto activo de navbar
+  static const Color azulPrimario = Color(0xFF1565C0);      // Botones, barras principales, línea "Entrada"
+  static const Color azulInstitucional = Color(0xFF1565C0);  // Alias coherente para acciones principales
+  static const Color azulClaro = Color(0xFFE3EEFB);          // Píldora activa de barra inferior y selecciones suaves
+  static const Color turquesa = Color(0xFF14B8A6);           // Línea "Salida", chip "Operativa", gauges
+  static const Color turquesaFondo = Color(0xFFE6F7F5);      // Fondo suave chip "Operativa"
+  static const Color fondoGeneral = Color(0xFFF3F6FA);       // Fondo general de todas las pantallas
+  static const Color blanco = Color(0xFFFFFFFF);             // Tarjetas, modales y formularios
+  static const Color superficie = Color(0xFFFFFFFF);         // Superficie de tarjetas
+  static const Color textoPrincipal = Color(0xFF0F1E3D);     // Títulos y valores grandes de alta legibilidad
+  static const Color textoSecundario = Color(0xFF6B7A90);    // Etiquetas, subtítulos y gris azulado
+  static const Color bordes = Color(0xFFE3E9F1);             // Bordes sutiles y separadores
 
-  // Estados y alertas normativas (Res. 2115 de 2007)
-  static const Color verdeAmbiental = Color(0xFF2E7D32);     // Estado dentro de norma / éxito
-  static const Color alerta = Color(0xFFF59E0B);             // Amarillo / Naranja advertencia normativa
-  static const Color alertaFondo = Color(0xFFFFFBEB);        // Fondo suave de advertencia
-  static const Color alertaBorde = Color(0xFFFDE68A);        // Borde suave de advertencia
-  static const Color error = Color(0xFFEF4444);              // Rojo crítico / fuera de norma
-  static const Color errorFondo = Color(0xFFFEF2F2);         // Fondo suave de error
-  static const Color exito = Color(0xFF2E7D32);              // Verde éxito
-  static const Color exitoFondo = Color(0xFFF0FDF4);         // Fondo éxito
+  // Estados y alertas normativas (Res. 2115 de 2007) - CERO AMARILLO
+  static const Color critico = Color(0xFFE53935);            // Crítico / Error / Fuera de rango
+  static const Color criticoFondo = Color(0xFFFDECEC);       // Fondo suave crítico / fila fuera de rango
+  static const Color error = Color(0xFFE53935);              // Alias error
+  static const Color errorFondo = Color(0xFFFDECEC);         // Fondo suave error
+
+  static const Color advertencia = Color(0xFFEA7A12);        // Advertencia / Mantenimiento (Naranja estricto)
+  static const Color advertenciaFondo = Color(0xFFFDF0E4);   // Fondo suave advertencia / mantenimiento
+  static const Color advertenciaBorde = Color(0xFFFAD1AB);   // Borde suave naranja advertencia
+  static const Color alerta = Color(0xFFEA7A12);             // Alias alerta -> Naranja (NO amarillo)
+  static const Color alertaFondo = Color(0xFFFDF0E4);        // Fondo alerta naranja
+  static const Color alertaBorde = Color(0xFFFAD1AB);        // Borde alerta naranja
+
+  static const Color informacion = Color(0xFF1E6FD9);        // Información normativa y técnica
+  static const Color informacionFondo = Color(0xFFE8F1FC);   // Fondo suave información
+  static const Color azulTecnologico = Color(0xFF1E6FD9);    // Elementos tecnológicos e interactivos
+
+  static const Color exito = Color(0xFF16A34A);              // Conforme / variación positiva / éxito
+  static const Color exitoFondo = Color(0xFFE6F7F5);         // Fondo suave éxito
+  static const Color verdeAmbiental = Color(0xFF16A34A);     // Verde normativo Res. 2115
 
   // Gradientes Institucionales de Alta Fidelidad
   static const LinearGradient gradienteAzul = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [azulMarino, azulInstitucional],
+    colors: [azulMarino, azulPrimario],
+  );
+
+  static const LinearGradient gradienteBanner = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [Color(0xFF0B3B7A), Color(0xFF082D60)],
   );
 
   static const LinearGradient gradienteAgua = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [azulInstitucional, turquesa],
-  );
-
-  static const LinearGradient gradienteTecnologico = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [azulTecnologico, Color(0xFF89BFF5)],
+    colors: [azulPrimario, turquesa],
   );
 
   static const LinearGradient gradienteTarjeta = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [blanco, Color(0xFFF8FAFC)],
+    colors: [blanco, Color(0xFFF8FAFD)],
   );
 
-  // Sombras suaves modernas basadas en referencia.png
+  // Sombras ultra suaves fieles a Figma
   static List<BoxShadow> get sombraSuave => [
     BoxShadow(
-      color: azulMarino.withAlpha(14),
-      blurRadius: 18,
+      color: const Color(0xFF0B3B7A).withAlpha(10),
+      blurRadius: 16,
       offset: const Offset(0, 4),
     ),
   ];
 
   static List<BoxShadow> get sombraTarjeta => [
     BoxShadow(
-      color: azulMarino.withAlpha(16),
-      blurRadius: 24,
-      offset: const Offset(0, 8),
+      color: const Color(0xFF0B3B7A).withAlpha(12),
+      blurRadius: 20,
+      offset: const Offset(0, 6),
     ),
   ];
 
   static List<BoxShadow> get sombraElevada => [
     BoxShadow(
-      color: azulInstitucional.withAlpha(25),
-      blurRadius: 28,
+      color: const Color(0xFF0B3B7A).withAlpha(20),
+      blurRadius: 24,
       offset: const Offset(0, 8),
     ),
   ];
 
-  // Aliases de compatibilidad unificados bajo la paleta PTAP
-  static const Color senaVerde = azulInstitucional;
+  // Aliases de compatibilidad
+  static const Color senaVerde = azulPrimario;
   static const Color senaVerdeOscuro = azulMarino;
   static const Color senaAzul = azulMarino;
-  static const Color aguaPrimario = azulInstitucional;
+  static const Color aguaPrimario = azulPrimario;
   static const Color aguaSecundario = turquesa;
   static const Color aguaFondo = fondoGeneral;
-  static const Color superficie = blanco;
   static const Color borde = bordes;
   static const Color neutroGris = textoSecundario;
 }
