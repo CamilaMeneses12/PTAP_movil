@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../../core/utils/mapa_supabase.dart';
 import '../../core/utils/supabase_config.dart';
 import '../models/registro_fisicoquimico.dart';
 
@@ -117,7 +118,7 @@ class FisicoquimicoRepository {
     }
 
     try {
-      final mapaRegistro = registro.toMap();
+      final mapaRegistro = paraInsertarEnSupabase(registro.toMap());
       final res = await SupabaseConfig.cliente
           .from('registros_fisicoquimicos')
           .insert(mapaRegistro)

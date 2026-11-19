@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/medidores_modelos.dart';
+import '../../../data/services/foto_lectura_service.dart';
 
 class DetalleJornadaMedidoresScreen extends StatelessWidget {
   final JornadaMedidores jornada;
@@ -164,6 +165,12 @@ class DetalleJornadaMedidoresScreen extends StatelessWidget {
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
+                    DataColumn(
+                      label: Text(
+                        'Foto',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
                   ],
                   rows: jornada.lecturas.map((l) {
                     final esMacro = l.tipoMedidor == 'macromedidor';
@@ -201,6 +208,7 @@ class DetalleJornadaMedidoresScreen extends StatelessWidget {
                             ),
                           ),
                         ),
+                        DataCell(_MiniaturaFotoLectura(lectura: l)),
                       ],
                     );
                   }).toList(),
@@ -278,6 +286,67 @@ class _FilaBalance extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Miniatura de la foto de evidencia de una lectura tomada con la cámara.
+class _MiniaturaFotoLectura extends StatelessWidget {
+  final LecturaMedidor lectura;
+
+  const _MiniaturaFotoLectura({required this.lectura});
+
+  @override
+  Widget build(BuildContext context) {
+    final ruta = lectura.fotoUrl;
+    if (ruta == null || ruta.isEmpty) {
+      return Text(
+        lectura.metodoLectura == 'manual' ? 'Manual' : 'Cámara (sin foto)',
+        style: const TextStyle(fontSize: 12, color: AppColors.textoSecundario),
+      );
+    }
+    return FutureBuilder<String?>(
+      future: FotoLecturaService().urlTemporal(ruta),
+      builder: (context, snap) {
+        final url = snap.data;
+        if (snap.connectionState != ConnectionState.done) {
+          return const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2));
+        }
+        if (url == null) {
+          return const Icon(Icons.broken_image_outlined, size: 20, color: AppColors.textoSecundario);
+        }
+        return InkWell(
+          onTap: () => showDialog<void>(
+            context: context,
+            builder: (ctx) => Dialog(
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  InteractiveViewer(child: Image.network(url)),
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      '${lectura.medidorNombre} · ${lectura.metodoLectura == 'ocr_editado' ? 'Leída con cámara y corregida' : 'Leída con cámara'}',
+                      style: const TextStyle(fontSize: 12, color: AppColors.textoSecundario),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Image.network(
+              url,
+              width: 52,
+              height: 36,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined, size: 20),
+            ),
+          ),
+        );
+      },
     );
   }
 }

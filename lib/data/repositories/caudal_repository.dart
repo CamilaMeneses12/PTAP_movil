@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../../core/utils/mapa_supabase.dart';
 import '../../core/utils/supabase_config.dart';
 import '../models/aforo_caudal_modelo.dart';
 
@@ -139,7 +140,7 @@ class CaudalRepository {
     if (!SupabaseConfig.estaInicializado) return true;
 
     try {
-      await SupabaseConfig.cliente.from('aforos_caudal').insert(aforo.toMap());
+      await SupabaseConfig.cliente.from('aforos_caudal').insert(paraInsertarEnSupabase(aforo.toMap()));
       return true;
     } catch (e) {
       debugPrint('Error al guardar aforo en Supabase: $e');

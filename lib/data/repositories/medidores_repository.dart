@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../../core/utils/mapa_supabase.dart';
 import '../../core/utils/supabase_config.dart';
 import '../models/medidores_modelos.dart';
 
@@ -183,7 +184,7 @@ class MedidoresRepository {
     if (!SupabaseConfig.estaInicializado) return true;
 
     try {
-      final mapaJornada = jornada.toMap();
+      final mapaJornada = paraInsertarEnSupabase(jornada.toMap());
       final res = await SupabaseConfig.cliente
           .from('jornadas_medidores')
           .insert(mapaJornada)
@@ -194,7 +195,7 @@ class MedidoresRepository {
 
       if (jornada.lecturas.isNotEmpty) {
         final listaLecturas = jornada.lecturas
-            .map((l) => l.toMap(fkJornadaId: idInsertado))
+            .map((l) => paraInsertarEnSupabase(l.toMap(fkJornadaId: idInsertado)))
             .toList();
 
         await SupabaseConfig.cliente

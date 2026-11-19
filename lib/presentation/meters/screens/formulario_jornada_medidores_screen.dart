@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -5,12 +6,15 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/alerta_sistema_modelo.dart';
 import '../../../data/models/medidores_modelos.dart';
+import '../../../data/services/foto_lectura_service.dart';
 import '../../../domain/calculations/calculos_medidores.dart';
 import '../../../domain/validators/validador_rangos.dart';
 import '../../alerts/providers/alertas_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../common/widgets/mensaje_fuera_de_rango.dart';
+import '../../settings/providers/preferencias_provider.dart';
 import '../providers/medidores_provider.dart';
+import 'captura_medidor_screen.dart';
 
 class FormularioJornadaMedidoresScreen extends StatefulWidget {
   const FormularioJornadaMedidoresScreen({super.key});
@@ -33,6 +37,11 @@ class _FormularioJornadaMedidoresScreenState
   final Map<int, TextEditingController> _actualControllers = {};
   final Map<int, TextEditingController> _anteriorControllers = {};
 
+  // Lecturas tomadas con la cámara: foto de evidencia y método ('camara_ocr' | 'ocr_editado')
+  final Map<int, String> _fotos = {};
+  final Map<int, String> _metodos = {};
+  bool _guardando = false;
+
   @override
   void initState() {
     super.initState();
@@ -49,6 +58,47 @@ class _FormularioJornadaMedidoresScreenState
       );
       _actualControllers[m.id] = TextEditingController();
     }
+
+    // Si el operario lo eligió en su perfil, la cámara se abre al crear la jornada.
+    final usarCamara = context.read<PreferenciasProvider>().usarCamaraMedidores;
+    if (usarCamara && (auth.perfil?.puedeEditar ?? false)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _abrirCamara(_micromedidores()));
+    }
+  }
+
+  List<Medidor> _micromedidores() {
+    final lista = context.read<MedidoresProvider>().catalogoMedidores.where((m) => m.esMicro).toList()
+      ..sort((a, b) => a.orden.compareTo(b.orden));
+    return lista;
+  }
+
+  /// Abre la cámara para los medidores indicados y llena las lecturas confirmadas.
+  Future<void> _abrirCamara(List<Medidor> medidores) async {
+    if (medidores.isEmpty || !mounted) return;
+    final anteriores = {for (final m in medidores) m.id: _parse(_anteriorControllers[m.id]!)};
+    final resultados = await Navigator.of(context).push<Map<int, LecturaCapturada>>(
+      MaterialPageRoute(
+        builder: (_) => CapturaMedidorScreen(medidores: medidores, lecturasAnteriores: anteriores),
+      ),
+    );
+    if (!mounted || resultados == null || resultados.isEmpty) return;
+
+    setState(() {
+      for (final m in medidores) {
+        final r = resultados[m.id];
+        if (r == null) continue;
+        _actualControllers[m.id]!.text = r.valor.toStringAsFixed(m.digitosDecimales);
+        _fotos[m.id] = r.rutaFoto;
+        _metodos[m.id] = r.metodo;
+      }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(resultados.length == 1
+            ? 'Lectura cargada desde la cámara.'
+            : 'Se cargaron ${resultados.length} lecturas desde la cámara.'),
+      ),
+    );
   }
 
   @override
@@ -96,6 +146,7 @@ class _FormularioJornadaMedidoresScreenState
   }
 
   Future<void> _guardar() async {
+    if (_guardando) return;
     if (!_formKey.currentState!.validate()) return;
 
     final medidores = context.read<MedidoresProvider>().catalogoMedidores;
@@ -215,6 +266,9 @@ class _FormularioJornadaMedidoresScreenState
       if (!mounted) return;
     }
 
+    setState(() => _guardando = true);
+    final jornadaId = 'jornada-${DateTime.now().millisecondsSinceEpoch}';
+    final fotosService = FotoLecturaService();
     final listaLecturas = <LecturaMedidor>[];
 
     for (final m in medidores) {
@@ -224,6 +278,20 @@ class _FormularioJornadaMedidoresScreenState
         lecturaActual: act,
         lecturaAnterior: ant,
       );
+      final cumple = ValidadorRangos.validarLecturaMedidor(
+        inicial: ant,
+        finalLectura: act,
+        nombreMedidor: m.nombre,
+      ).cumple;
+
+      // La foto se sube como evidencia; si falla, la lectura se guarda igual.
+      final fotoLocal = _fotos[m.id];
+      final fotoUrl = fotoLocal == null
+          ? null
+          : await fotosService.subir(
+              fotoLocal,
+              FotoLecturaService.rutaRemota(fecha: _fecha, jornadaId: jornadaId, codigoMedidor: m.codigo),
+            );
 
       listaLecturas.add(
         LecturaMedidor(
@@ -233,15 +301,19 @@ class _FormularioJornadaMedidoresScreenState
           lecturaActual: act,
           lecturaAnterior: ant,
           consumo: con,
+          fotoUrl: fotoUrl,
+          metodoLectura: _metodos[m.id] ?? 'manual',
+          fueraDeRango: !cumple,
         ),
       );
     }
 
+    if (!mounted) return;
     final horaTexto =
         '${_hora.hour.toString().padLeft(2, '0')}:${_hora.minute.toString().padLeft(2, '0')}';
 
     final nuevaJornada = JornadaMedidores(
-      id: 'jornada-${DateTime.now().millisecondsSinceEpoch}',
+      id: jornadaId,
       fecha: _fecha,
       hora: horaTexto,
       responsableLectura: _responsableController.text.trim(),
@@ -259,6 +331,7 @@ class _FormularioJornadaMedidoresScreenState
     final exito = await provider.guardarJornada(nuevaJornada);
 
     if (mounted) {
+      setState(() => _guardando = false);
       if (exito) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -431,6 +504,34 @@ class _FormularioJornadaMedidoresScreenState
               ),
               const SizedBox(height: 10),
 
+              // Lectura rápida: recorre los 8 micromedidores con la cámara
+              Card(
+                color: AppColors.azulClaro,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ElevatedButton.icon(
+                        key: const Key('leer_con_camara'),
+                        icon: const Icon(Icons.photo_camera_outlined),
+                        label: const Text('Leer micromedidores con cámara'),
+                        onPressed: () => _abrirCamara(_micromedidores()),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Enfoque el contador de cada medidor; el valor se llena solo y puede corregirlo. '
+                        'También puede usar el ícono de cámara de cada lectura.',
+                        style: TextStyle(fontSize: 11, color: AppColors.textoSecundario),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
               ...medidores.map((m) {
                 final esMacro = m.esMacro;
                 final actCtrl = _actualControllers[m.id]!;
@@ -523,10 +624,17 @@ class _FormularioJornadaMedidoresScreenState
                                 controller: actCtrl,
                                 keyboardType:
                                     const TextInputType.numberWithOptions(decimal: true),
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   labelText: 'Lectura actual',
                                   suffixText: 'm³',
                                   isDense: true,
+                                  suffixIcon: IconButton(
+                                    tooltip: 'Leer con cámara',
+                                    visualDensity: VisualDensity.compact,
+                                    icon: const Icon(Icons.photo_camera_outlined, size: 20),
+                                    color: AppColors.azulPrimario,
+                                    onPressed: () => _abrirCamara([m]),
+                                  ),
                                 ),
                                 validator: (v) {
                                   if (v == null || v.trim().isEmpty) {
@@ -537,11 +645,45 @@ class _FormularioJornadaMedidoresScreenState
                                   }
                                   return null;
                                 },
-                                onChanged: (_) => setState(() {}),
+                                onChanged: (_) => setState(() {
+                                  // Si se edita a mano un valor leído por cámara, queda como corregido
+                                  if (_metodos[m.id] == 'camara_ocr') _metodos[m.id] = 'ocr_editado';
+                                }),
                               ),
                             ),
                           ],
                         ),
+                        if (_fotos[m.id] != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 10),
+                            child: Row(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Image.file(
+                                    File(_fotos[m.id]!),
+                                    width: 56,
+                                    height: 40,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) => const SizedBox(width: 56, height: 40),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Icon(
+                                  _metodos[m.id] == 'ocr_editado' ? Icons.edit_outlined : Icons.photo_camera_outlined,
+                                  size: 15,
+                                  color: AppColors.turquesaTexto,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _metodos[m.id] == 'ocr_editado'
+                                      ? 'Leída con cámara y corregida'
+                                      : 'Leída con cámara',
+                                  style: const TextStyle(fontSize: 11, color: AppColors.turquesaTexto),
+                                ),
+                              ],
+                            ),
+                          ),
                         Builder(
                           builder: (context) {
                             final ant = _parse(antCtrl);
@@ -595,12 +737,18 @@ class _FormularioJornadaMedidoresScreenState
 
               // Botón Guardar
               ElevatedButton.icon(
-                icon: const Icon(Icons.save_outlined),
-                label: const Text(
-                  'Guardar Lecturas de Medidores',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                icon: _guardando
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.save_outlined),
+                label: Text(
+                  _guardando ? 'Guardando…' : 'Guardar Lecturas de Medidores',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
-                onPressed: _guardar,
+                onPressed: _guardando ? null : _guardar,
               ),
               const SizedBox(height: 20),
             ],
