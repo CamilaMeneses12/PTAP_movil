@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/medidores_modelos.dart';
+import '../../../data/services/dataset_medidores_service.dart';
+import '../../../data/services/lector_medidor_ia_service.dart';
 import '../../../data/services/ocr_medidor_service.dart';
 import '../../../domain/ocr/interprete_lectura_medidor.dart';
 import '../../../domain/validators/validador_rangos.dart';
@@ -37,16 +39,21 @@ class CapturaMedidorScreen extends StatefulWidget {
 
 class _CapturaMedidorScreenState extends State<CapturaMedidorScreen> with WidgetsBindingObserver {
   final _ocr = OcrMedidorService();
+  final _ia = LectorMedidorIaService();
+  final _dataset = DatasetMedidoresService();
   final _valorCtrl = TextEditingController();
   final Map<int, LecturaCapturada> _resultados = {};
 
   CameraController? _camara;
   String? _errorCamara;
   bool _flash = false;
+  bool _vertical = false; // recuadro vertical para medidores instalados de lado
   int _indice = 0;
   _Fase _fase = _Fase.camara;
   FotoProcesada? _foto;
   ResultadoLecturaOcr? _lecturaOcr;
+  String? _recorteUsado; // recorte (en la orientación correcta) del que salió la lectura
+  String? _fuenteLectura; // 'Modelo propio' o 'ML Kit'
   String? _errorValor;
 
   Medidor get _medidor => widget.medidores[_indice];
@@ -65,6 +72,7 @@ class _CapturaMedidorScreenState extends State<CapturaMedidorScreen> with Widget
     WidgetsBinding.instance.removeObserver(this);
     _camara?.dispose();
     _ocr.cerrar();
+    _ia.cerrar();
     _valorCtrl.dispose();
     super.dispose();
   }
@@ -134,17 +142,36 @@ class _CapturaMedidorScreenState extends State<CapturaMedidorScreen> with Widget
     setState(() => _fase = _Fase.procesando);
     try {
       final archivo = await c.takePicture();
-      final foto = await _ocr.prepararFoto(archivo.path);
-      final texto = await _ocr.reconocerTexto(foto.rutaRecorte);
-      final lectura = InterpreteLecturaMedidor.interpretar(
-        texto,
-        digitosEnteros: _medidor.digitosEnteros,
-        digitosDecimales: _medidor.digitosDecimales,
-      );
+      final foto = await _ocr.prepararFoto(archivo.path, vertical: _vertical);
+      // De lado, el contador puede estar girado hacia cualquiera de los dos sentidos: se prueban ambos.
+      final recortes = [foto.rutaRecorte, ?foto.rutaRecorteAlterno];
+      final opciones = <ResultadoLecturaOcr?>[];
+      final origen = <(String ruta, String fuente)>[];
+      for (final ruta in recortes) {
+        opciones.add(await _ia.leer(
+          ruta,
+          digitosEnteros: _medidor.digitosEnteros,
+          digitosDecimales: _medidor.digitosDecimales,
+        ));
+        origen.add((ruta, 'Modelo propio'));
+      }
+      for (final ruta in recortes) {
+        opciones.add(InterpreteLecturaMedidor.interpretar(
+          await _ocr.reconocerTexto(ruta),
+          digitosEnteros: _medidor.digitosEnteros,
+          digitosDecimales: _medidor.digitosDecimales,
+          lecturaAnterior: _anterior,
+        ));
+        origen.add((ruta, 'ML Kit'));
+      }
+      final indice = InterpreteLecturaMedidor.elegirMejor(opciones, lecturaAnterior: _anterior);
+      final lectura = InterpreteLecturaMedidor.mejorLectura(opciones, lecturaAnterior: _anterior);
       if (!mounted) return;
       setState(() {
         _foto = foto;
         _lecturaOcr = lectura;
+        _recorteUsado = indice >= 0 ? origen[indice].$1 : foto.rutaRecorte;
+        _fuenteLectura = indice >= 0 ? origen[indice].$2 : null;
         _valorCtrl.text = lectura == null ? '' : _formatear(lectura.valor);
         _errorValor = null;
         _fase = _Fase.confirmacion;
@@ -168,6 +195,14 @@ class _CapturaMedidorScreenState extends State<CapturaMedidorScreen> with Widget
       return;
     }
     final sinCambios = _lecturaOcr != null && _formatear(_lecturaOcr!.valor) == _formatear(valor);
+    // Cada lectura confirmada queda como ejemplo para volver a entrenar el modelo (entrenamiento/)
+    _dataset.guardar(
+      rutaRecorte: _recorteUsado ?? foto.rutaRecorte,
+      valor: valor,
+      codigoMedidor: _medidor.codigo,
+      digitosEnteros: _medidor.digitosEnteros,
+      digitosDecimales: _medidor.digitosDecimales,
+    );
     _resultados[_medidor.id] = LecturaCapturada(
       valor: valor,
       rutaFoto: foto.rutaEvidencia,
@@ -186,6 +221,8 @@ class _CapturaMedidorScreenState extends State<CapturaMedidorScreen> with Widget
       _fase = _Fase.camara;
       _foto = null;
       _lecturaOcr = null;
+      _recorteUsado = null;
+      _fuenteLectura = null;
       _valorCtrl.clear();
       _errorValor = null;
     });
@@ -267,7 +304,7 @@ class _CapturaMedidorScreenState extends State<CapturaMedidorScreen> with Widget
       centro = Center(
         child: CameraPreview(
           c,
-          child: CustomPaint(painter: _GuiaPainter(), child: const SizedBox.expand()),
+          child: CustomPaint(painter: _GuiaPainter(vertical: _vertical), child: const SizedBox.expand()),
         ),
       );
     }
@@ -278,9 +315,22 @@ class _CapturaMedidorScreenState extends State<CapturaMedidorScreen> with Widget
           width: double.infinity,
           color: AppColors.azulMarino.withAlpha(220),
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
-          child: Text(
-            'Alinee los números del contador dentro del recuadro.  Lectura anterior: $anteriorTxt m³',
-            style: const TextStyle(fontSize: 12, color: Colors.white),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Alinee los números del contador dentro del recuadro.  Lectura anterior: $anteriorTxt m³',
+                  style: const TextStyle(fontSize: 12, color: Colors.white),
+                ),
+              ),
+              TextButton.icon(
+                key: const Key('girar_recuadro'),
+                onPressed: () => setState(() => _vertical = !_vertical),
+                style: TextButton.styleFrom(foregroundColor: Colors.white),
+                icon: const Icon(Icons.screen_rotation_alt_rounded, size: 18),
+                label: Text(_vertical ? 'Horizontal' : 'De lado'),
+              ),
+            ],
           ),
         ),
         Expanded(
@@ -381,7 +431,15 @@ class _CapturaMedidorScreenState extends State<CapturaMedidorScreen> with Widget
         if (_foto != null)
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: Image.file(File(_foto!.rutaRecorte), fit: BoxFit.cover, height: 110),
+            child: Image.file(File(_recorteUsado ?? _foto!.rutaRecorte), fit: BoxFit.cover, height: 110),
+          ),
+        if (_fuenteLectura != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              'Leído por: $_fuenteLectura',
+              style: const TextStyle(fontSize: 11, color: AppColors.textoSecundario),
+            ),
           ),
         const SizedBox(height: 14),
         Row(
@@ -444,13 +502,16 @@ class _CapturaMedidorScreenState extends State<CapturaMedidorScreen> with Widget
 
 /// Oscurece todo menos el recuadro guía donde deben quedar los números del contador.
 class _GuiaPainter extends CustomPainter {
+  final bool vertical;
+  const _GuiaPainter({required this.vertical});
+
   @override
   void paint(Canvas canvas, Size size) {
     final guia = RRect.fromRectAndRadius(
       Rect.fromCenter(
         center: Offset(size.width / 2, size.height * OcrMedidorService.guiaCentroY),
-        width: size.width * OcrMedidorService.guiaAncho,
-        height: size.height * OcrMedidorService.guiaAlto,
+        width: size.width * OcrMedidorService.anchoGuia(vertical),
+        height: size.height * OcrMedidorService.altoGuia(vertical),
       ),
       const Radius.circular(12),
     );
@@ -470,5 +531,5 @@ class _GuiaPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _GuiaPainter oldDelegate) => oldDelegate.vertical != vertical;
 }

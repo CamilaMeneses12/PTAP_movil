@@ -6,8 +6,8 @@ class Medidor {
   final String tipo; // 'micromedidor' o 'macromedidor'
   final int orden;
   final bool activo;
-  final int digitosEnteros; // rodillos negros (m³ enteros), defecto 5
-  final int digitosDecimales; // rodillos o agujas rojas (decimales), defecto 3
+  final int digitosEnteros; // rodillos blancos/negros (m³ enteros), defecto 4
+  final int digitosDecimales; // rodillos rojos (decimales), defecto 4
 
   const Medidor({
     required this.id,
@@ -16,8 +16,8 @@ class Medidor {
     required this.tipo,
     required this.orden,
     this.activo = true,
-    this.digitosEnteros = 5,
-    this.digitosDecimales = 3,
+    this.digitosEnteros = 4,
+    this.digitosDecimales = 4,
   });
 
   bool get esMacro => tipo == 'macromedidor';
@@ -31,8 +31,8 @@ class Medidor {
       tipo: map['tipo'] as String? ?? 'micromedidor',
       orden: int.tryParse(map['orden']?.toString() ?? '0') ?? 0,
       activo: map['activo'] as bool? ?? true,
-      digitosEnteros: int.tryParse(map['digitos_enteros']?.toString() ?? '5') ?? 5,
-      digitosDecimales: int.tryParse(map['digitos_decimales']?.toString() ?? '3') ?? 3,
+      digitosEnteros: int.tryParse(map['digitos_enteros']?.toString() ?? '4') ?? 4,
+      digitosDecimales: int.tryParse(map['digitos_decimales']?.toString() ?? '4') ?? 4,
     );
   }
 

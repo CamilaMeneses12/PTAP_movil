@@ -59,11 +59,98 @@ class InterpreteLecturaMedidor {
     return candidatos;
   }
 
+  /// Elige la mejor entre varias lecturas candidatas (modelo propio, ML Kit, recorte girado...).
+  /// Gana la creíble frente a la lectura anterior y, entre ellas, la de mayor confianza.
+  /// En empate gana la primera (por eso el modelo propio se pasa primero).
+  /// Si dos fuentes leen el mismo valor, la confianza sube a alta.
+  /// Devuelve el índice elegido, o -1 si todas son null.
+  static int elegirMejor(List<ResultadoLecturaOcr?> opciones, {double? lecturaAnterior}) {
+    bool creible(ResultadoLecturaOcr l) =>
+        lecturaAnterior == null ||
+        lecturaAnterior <= 0 ||
+        (l.valor >= lecturaAnterior - 0.01 && l.valor - lecturaAnterior <= consumoMaximoCreible);
+    var mejor = -1;
+    for (var i = 0; i < opciones.length; i++) {
+      final l = opciones[i];
+      if (l == null) continue;
+      if (mejor == -1) {
+        mejor = i;
+        continue;
+      }
+      final m = opciones[mejor]!;
+      final lc = creible(l), mc = creible(m);
+      if (lc != mc) {
+        if (lc) mejor = i;
+      } else if (l.confianza.index < m.confianza.index) {
+        mejor = i;
+      }
+    }
+    return mejor;
+  }
+
+  /// La lectura elegida, con confianza alta si otra fuente leyó exactamente lo mismo.
+  static ResultadoLecturaOcr? mejorLectura(List<ResultadoLecturaOcr?> opciones, {double? lecturaAnterior}) {
+    final i = elegirMejor(opciones, lecturaAnterior: lecturaAnterior);
+    if (i < 0) return null;
+    final elegida = opciones[i]!;
+    final coincide = [
+      for (var j = 0; j < opciones.length; j++)
+        if (j != i && opciones[j] != null && (opciones[j]!.valor - elegida.valor).abs() < 1e-9) j,
+    ].isNotEmpty;
+    return coincide
+        ? ResultadoLecturaOcr(valor: elegida.valor, digitos: elegida.digitos, confianza: ConfianzaOcr.alta)
+        : elegida;
+  }
+
+  /// Consumo máximo creíble entre dos lecturas de un micromedidor (m³).
+  static const double consumoMaximoCreible = 100;
+
+  /// Convierte un candidato (solo dígitos, o con separador explícito) en una lectura.
+  static ResultadoLecturaOcr? _aLectura(String candidato, int digitosEnteros, int digitosDecimales) {
+    final total = digitosEnteros + digitosDecimales;
+
+    // Si el OCR leyó un separador decimal explícito, respetarlo.
+    if (RegExp(r'[.,]').hasMatch(candidato)) {
+      final valor = double.tryParse(candidato.replaceAll(',', '.'));
+      if (valor == null) return null;
+      return ResultadoLecturaOcr(
+        valor: valor,
+        digitos: candidato.replaceAll(RegExp(r'[.,]'), ''),
+        confianza: ConfianzaOcr.media,
+      );
+    }
+
+    var digitos = candidato;
+    if (digitos.length > total) digitos = digitos.substring(0, total);
+
+    final double valor;
+    if (digitos.length <= digitosEnteros) {
+      valor = double.parse(digitos);
+    } else {
+      valor = double.parse('${digitos.substring(0, digitosEnteros)}.${digitos.substring(digitosEnteros)}');
+    }
+
+    final ConfianzaOcr confianza;
+    if (candidato.length == total) {
+      confianza = ConfianzaOcr.alta;
+    } else if (candidato.length >= digitosEnteros) {
+      confianza = ConfianzaOcr.media;
+    } else {
+      confianza = ConfianzaOcr.baja;
+    }
+    return ResultadoLecturaOcr(valor: valor, digitos: digitos, confianza: confianza);
+  }
+
   /// Devuelve null si no encontró ningún número en el texto.
+  ///
+  /// Con [lecturaAnterior] elige el número más cercano por encima de la lectura anterior:
+  /// así descarta el número de serie grabado en la carcasa (ej. "23 093377"), que también
+  /// tiene 8 dígitos pero no es una lectura posible.
   static ResultadoLecturaOcr? interpretar(
     String texto, {
-    int digitosEnteros = 5,
-    int digitosDecimales = 3,
+    int digitosEnteros = 4,
+    int digitosDecimales = 4,
+    double? lecturaAnterior,
   }) {
     final total = digitosEnteros + digitosDecimales;
     int largo(String c) => c.replaceAll(RegExp(r'[.,]'), '').length;
@@ -72,47 +159,38 @@ class InterpreteLecturaMedidor {
     final candidatos = _candidatos(texto).where((c) => largo(c) >= 3).toList();
     if (candidatos.isEmpty) return null;
 
-    // Preferir el candidato con la cantidad de dígitos esperada; si no, el más largo.
-    candidatos.sort((a, b) {
-      final da = (largo(a) - total).abs();
-      final db = (largo(b) - total).abs();
+    final lecturas = [
+      for (final c in candidatos) ?_aLectura(c, digitosEnteros, digitosDecimales),
+    ];
+    if (lecturas.isEmpty) return null;
+
+    if (lecturaAnterior != null && lecturaAnterior > 0) {
+      // Tolerancia pequeña hacia atrás: el último rodillo puede estar a medio girar.
+      final creibles = lecturas
+          .where((l) => l.valor >= lecturaAnterior - 0.01 && l.valor - lecturaAnterior <= consumoMaximoCreible)
+          .toList()
+        ..sort((a, b) {
+          final porDigitos = (a.digitos.length - total).abs().compareTo((b.digitos.length - total).abs());
+          if (porDigitos != 0) return porDigitos;
+          return (a.valor - lecturaAnterior).abs().compareTo((b.valor - lecturaAnterior).abs());
+        });
+      if (creibles.isNotEmpty) return creibles.first;
+    }
+
+    // Sin lectura anterior (o ningún candidato creíble): el de la cantidad de dígitos esperada.
+    lecturas.sort((a, b) {
+      final da = (a.digitos.length - total).abs();
+      final db = (b.digitos.length - total).abs();
       if (da != db) return da.compareTo(db);
-      return largo(b).compareTo(largo(a));
+      return b.digitos.length.compareTo(a.digitos.length);
     });
-    final elegido = candidatos.first;
-
-    // Si el OCR leyó un separador decimal explícito, respetarlo.
-    if (RegExp(r'[.,]').hasMatch(elegido)) {
-      final valor = double.tryParse(elegido.replaceAll(',', '.'));
-      if (valor == null) return null;
-      return ResultadoLecturaOcr(
-        valor: valor,
-        digitos: elegido.replaceAll(RegExp(r'[.,]'), ''),
-        confianza: ConfianzaOcr.media,
-      );
-    }
-
-    var digitos = elegido;
-    if (digitos.length > total) digitos = digitos.substring(0, total);
-
-    final double valor;
-    if (digitos.length <= digitosEnteros) {
-      valor = double.parse(digitos);
-    } else {
-      final enteros = digitos.substring(0, digitosEnteros);
-      final decimales = digitos.substring(digitosEnteros);
-      valor = double.parse('$enteros.$decimales');
-    }
-
-    final ConfianzaOcr confianza;
-    if (elegido.length == total) {
-      confianza = ConfianzaOcr.alta;
-    } else if (elegido.length >= digitosEnteros) {
-      confianza = ConfianzaOcr.media;
-    } else {
-      confianza = ConfianzaOcr.baja;
-    }
-
-    return ResultadoLecturaOcr(valor: valor, digitos: digitos, confianza: confianza);
+    final elegida = lecturas.first;
+    final sinPista = lecturaAnterior == null || lecturaAnterior <= 0;
+    return ResultadoLecturaOcr(
+      valor: elegida.valor,
+      digitos: elegida.digitos,
+      // Si había lectura anterior y ningún número es creíble, avisar al operario.
+      confianza: sinPista ? elegida.confianza : ConfianzaOcr.baja,
+    );
   }
 }

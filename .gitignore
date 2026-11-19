@@ -53,3 +53,8 @@ log.txt
 
 /*.png
 
+
+# Entrenamiento de la IA (entorno y datos generados)
+entrenamiento/.venv/
+entrenamiento/datos/
+entrenamiento/modelos/*.keras

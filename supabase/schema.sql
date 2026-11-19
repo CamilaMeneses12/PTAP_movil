@@ -443,8 +443,8 @@ alter table public.aforos_caudal add column if not exists fuera_de_rango boolean
 
 -- 3. LECTURA DE MICROMEDIDORES CON CÁMARA (OCR)
 -- Cantidad de rodillos del contador: negros = m³ enteros, rojos = decimales
-alter table public.medidores add column if not exists digitos_enteros integer not null default 5;
-alter table public.medidores add column if not exists digitos_decimales integer not null default 3;
+alter table public.medidores add column if not exists digitos_enteros integer not null default 4;
+alter table public.medidores add column if not exists digitos_decimales integer not null default 4;
 
 alter table public.lecturas_medidores add column if not exists foto_url text;
 alter table public.lecturas_medidores add column if not exists metodo_lectura text not null default 'manual';
