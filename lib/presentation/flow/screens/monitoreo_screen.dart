@@ -1,7 +1,12 @@
 import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
 import '../../../core/constants/app_colors.dart';
+import '../../../domain/telemetria/telemetria_planta.dart';
+import '../../../domain/validators/validador_rangos.dart';
 import '../../common/widgets/chip_estado.dart';
 
 class MonitoreoScreen extends StatefulWidget {
@@ -11,11 +16,127 @@ class MonitoreoScreen extends StatefulWidget {
   State<MonitoreoScreen> createState() => _MonitoreoScreenState();
 }
 
+/// Configuración de la gráfica de cada pestaña (Caudal, Presión, Nivel).
+class _SerieGrafica {
+  final String nombre;
+  final Color color;
+  final List<double> valores;
+  const _SerieGrafica(this.nombre, this.color, this.valores);
+}
+
+class _VistaMonitoreo {
+  final String titulo;
+  final String unidad;
+  final List<_SerieGrafica> series;
+  final double? minimo;
+  final double? maximo;
+  final String textoRango;
+  final String detalle;
+  final int decimales;
+
+  const _VistaMonitoreo({
+    required this.titulo,
+    required this.unidad,
+    required this.series,
+    required this.minimo,
+    required this.maximo,
+    required this.textoRango,
+    required this.detalle,
+    required this.decimales,
+  });
+
+  List<double> get principal => series.first.valores;
+  bool fueraDeRango(double v) =>
+      (minimo != null && v < minimo!) || (maximo != null && v > maximo!);
+}
+
 class _MonitoreoScreenState extends State<MonitoreoScreen> {
   int _indiceSubpestana = 0; // 0: Caudal, 1: Presión, 2: Nivel
 
+  static final _f1 = NumberFormat('#,##0.0', 'es_CO');
+  static final _f2 = NumberFormat('#,##0.00', 'es_CO');
+  static final _f0 = NumberFormat('#,##0', 'es_CO');
+
+  String _fmt(double v, int decimales) => switch (decimales) {
+    0 => _f0.format(v),
+    1 => _f1.format(v),
+    _ => _f2.format(v),
+  };
+
+  _VistaMonitoreo _vista(List<MuestraTelemetria> horas) {
+    final actual = horas.last;
+    switch (_indiceSubpestana) {
+      case 1:
+        return _VistaMonitoreo(
+          titulo: 'Presión de la red de distribución',
+          unidad: 'bar',
+          series: [
+            _SerieGrafica('Presión', AppColors.azulPrimario, [
+              for (final h in horas) h.presion,
+            ]),
+          ],
+          minimo: ValidadorRangos.presionRedMin,
+          maximo: ValidadorRangos.presionRedMax,
+          textoRango:
+              'Rango ${_f1.format(ValidadorRangos.presionRedMin)}–${_f1.format(ValidadorRangos.presionRedMax)} bar',
+          detalle: actual.presionFueraDeRango
+              ? 'Presión actual fuera del rango operativo'
+              : 'Presión actual dentro del rango operativo',
+          decimales: 2,
+        );
+      case 2:
+        final volumen =
+            actual.nivelTanque / 100 * TelemetriaPlanta.capacidadTanqueM3;
+        return _VistaMonitoreo(
+          titulo: 'Nivel del tanque de almacenamiento',
+          unidad: '%',
+          series: [
+            _SerieGrafica('Nivel', AppColors.turquesa, [
+              for (final h in horas) h.nivelTanque,
+            ]),
+          ],
+          minimo: ValidadorRangos.nivelTanqueMin,
+          maximo: null,
+          textoRango:
+              'Mínimo operativo ${_f0.format(ValidadorRangos.nivelTanqueMin)} %',
+          detalle:
+              '${_f0.format(volumen)} m³ de ${_f0.format(TelemetriaPlanta.capacidadTanqueM3)} m³ disponibles',
+          decimales: 1,
+        );
+      default:
+        final dif = actual.caudalEntrada - actual.caudalSalida;
+        final pct = actual.caudalEntrada == 0
+            ? 0
+            : dif / actual.caudalEntrada * 100;
+        return _VistaMonitoreo(
+          titulo: 'Caudal de entrada vs. salida',
+          unidad: 'L/s',
+          series: [
+            _SerieGrafica('Entrada', AppColors.azulPrimario, [
+              for (final h in horas) h.caudalEntrada,
+            ]),
+            _SerieGrafica('Salida', AppColors.turquesa, [
+              for (final h in horas) h.caudalSalida,
+            ]),
+          ],
+          minimo: ValidadorRangos.caudalEntradaMin,
+          maximo: ValidadorRangos.caudalEntradaMax,
+          textoRango:
+              'Rango ${_f0.format(ValidadorRangos.caudalEntradaMin)}–${_f0.format(ValidadorRangos.caudalEntradaMax)} L/s',
+          detalle: 'Diferencia: ${_f1.format(dif)} L/s (${_f1.format(pct)} %)',
+          decimales: 1,
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final ahora = DateTime.now();
+    final horas = TelemetriaPlanta.ultimasHoras(ahora, 24);
+    final actual = horas.last;
+    final vista = _vista(horas);
+    final horaTxt = DateFormat('HH:mm').format(ahora);
+
     return Scaffold(
       backgroundColor: AppColors.fondoGeneral,
       appBar: AppBar(
@@ -45,12 +166,15 @@ class _MonitoreoScreenState extends State<MonitoreoScreen> {
                   ),
                 ),
                 const SizedBox(width: 4),
-                const Text(
-                  'Tiempo real · Actualizado 09:41',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textoSecundario,
-                    fontWeight: FontWeight.w400,
+                Flexible(
+                  child: Text(
+                    'Datos simulados · Actualizado $horaTxt',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textoSecundario,
+                      fontWeight: FontWeight.w400,
+                    ),
                   ),
                 ),
               ],
@@ -59,12 +183,13 @@ class _MonitoreoScreenState extends State<MonitoreoScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.tune_rounded, color: AppColors.azulMarino, size: 22),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Sensores y telemetría sincronizados correctamente')),
-              );
-            },
+            icon: const Icon(
+              Icons.refresh_rounded,
+              color: AppColors.azulMarino,
+              size: 22,
+            ),
+            tooltip: 'Actualizar',
+            onPressed: () => setState(() {}),
           ),
         ],
       ),
@@ -103,8 +228,8 @@ class _MonitoreoScreenState extends State<MonitoreoScreen> {
 
             const SizedBox(height: 14),
 
-            // Tarjeta Principal: Caudal entrada vs salida (últimas 24h)
-            _construirTarjetaGraficaCaudal(),
+            // Tarjeta principal: cambia con la pestaña seleccionada (últimas 24 h)
+            _construirTarjetaGrafica(vista, horas),
 
             const SizedBox(height: 16),
 
@@ -122,28 +247,30 @@ class _MonitoreoScreenState extends State<MonitoreoScreen> {
             _ItemEtapaProceso(
               numero: '1',
               nombre: 'Captación',
-              detalle: 'Caudal 128,4 L/s',
-              estado: TipoEstadoPlanta.operativa,
+              detalle: 'Caudal ${_f1.format(actual.caudalEntrada)} L/s',
+              estado: actual.caudalFueraDeRango
+                  ? TipoEstadoPlanta.enAlerta
+                  : TipoEstadoPlanta.operativa,
             ),
-            _ItemEtapaProceso(
+            const _ItemEtapaProceso(
               numero: '2',
               nombre: 'Coagulación y floculación',
               detalle: 'Dosis de coagulante 18 mg/L',
               estado: TipoEstadoPlanta.operativa,
             ),
-            _ItemEtapaProceso(
+            const _ItemEtapaProceso(
               numero: '3',
               nombre: 'Sedimentación',
               detalle: 'Turbidez 3,2 NTU',
               estado: TipoEstadoPlanta.operativa,
             ),
-            _ItemEtapaProceso(
+            const _ItemEtapaProceso(
               numero: '4',
               nombre: 'Filtración',
               detalle: 'Filtro 3 en retrolavado',
               estado: TipoEstadoPlanta.mantenimiento,
             ),
-            _ItemEtapaProceso(
+            const _ItemEtapaProceso(
               numero: '5',
               nombre: 'Desinfección',
               detalle: 'Cloro residual 1,1 mg/L',
@@ -152,8 +279,11 @@ class _MonitoreoScreenState extends State<MonitoreoScreen> {
             _ItemEtapaProceso(
               numero: '6',
               nombre: 'Almacenamiento',
-              detalle: 'Nivel 78 % · 1.950 m³',
-              estado: TipoEstadoPlanta.operativa,
+              detalle:
+                  'Nivel ${_f0.format(actual.nivelTanque)} % · ${_f0.format(actual.nivelTanque / 100 * TelemetriaPlanta.capacidadTanqueM3)} m³',
+              estado: actual.nivelFueraDeRango
+                  ? TipoEstadoPlanta.enAlerta
+                  : TipoEstadoPlanta.operativa,
             ),
 
             const SizedBox(height: 16),
@@ -161,12 +291,17 @@ class _MonitoreoScreenState extends State<MonitoreoScreen> {
             // Fila de medidores y gauges (Presión de red + Nivel de tanque)
             Row(
               children: [
-                Expanded(
-                  child: _MedidorPresion(valorPresion: 3.4),
-                ),
+                Expanded(child: _MedidorPresion(valorPresion: actual.presion)),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _MedidorNivelTanque(porcentaje: 78, volumenM3: 1950),
+                  child: _MedidorNivelTanque(
+                    porcentaje: actual.nivelTanque.round(),
+                    volumenM3:
+                        (actual.nivelTanque /
+                                100 *
+                                TelemetriaPlanta.capacidadTanqueM3)
+                            .round(),
+                  ),
                 ),
               ],
             ),
@@ -178,8 +313,26 @@ class _MonitoreoScreenState extends State<MonitoreoScreen> {
     );
   }
 
-  Widget _construirTarjetaGraficaCaudal() {
+  Widget _construirTarjetaGrafica(
+    _VistaMonitoreo vista,
+    List<MuestraTelemetria> horas,
+  ) {
+    final valores = vista.principal;
+    final todos = [for (final s in vista.series) ...s.valores];
+    final maximo = valores.reduce(math.max);
+    final minimo = valores.reduce(math.min);
+    final promedio = valores.reduce((a, b) => a + b) / valores.length;
+
+    // Eje Y: incluye los datos y los límites del rango, con un margen
+    final limites = [...todos, ?vista.minimo, ?vista.maximo];
+    final bajo = limites.reduce(math.min);
+    final alto = limites.reduce(math.max);
+    final margen = (alto - bajo) * 0.12;
+    final ultimo = valores.length - 1;
+    final u = vista.unidad == '%' ? ' %' : ' ${vista.unidad}';
+
     return Container(
+      key: ValueKey('grafica_monitoreo_$_indiceSubpestana'),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.blanco,
@@ -190,74 +343,39 @@ class _MonitoreoScreenState extends State<MonitoreoScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Título de la tarjeta y estado en vivo
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Caudal de entrada vs. salida',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textoPrincipal,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColors.turquesaFondo,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.sensors_rounded, size: 12, color: AppColors.turquesa),
-                    SizedBox(width: 3),
-                    Text(
-                      'En vivo',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.turquesa,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          Text(
+            vista.titulo,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textoPrincipal,
+            ),
           ),
           const SizedBox(height: 2),
           const Text(
             'Últimas 24 h · Intervalo 1 h',
-            style: TextStyle(
-              fontSize: 11,
-              color: AppColors.textoSecundario,
-            ),
+            style: TextStyle(fontSize: 11, color: AppColors.textoSecundario),
           ),
           const SizedBox(height: 12),
 
-          // Valores actuales y leyenda
-          Row(
+          // Valor actual de cada serie
+          Wrap(
+            spacing: 24,
+            runSpacing: 6,
             children: [
-              _ItemValorCaudal(
-                etiqueta: 'Entrada',
-                valor: '128,4',
-                unidad: 'L/s',
-                colorPunto: AppColors.azulPrimario,
-              ),
-              const SizedBox(width: 24),
-              _ItemValorCaudal(
-                etiqueta: 'Salida',
-                valor: '122,7',
-                unidad: 'L/s',
-                colorPunto: AppColors.turquesa,
-              ),
+              for (final s in vista.series)
+                _ItemValorCaudal(
+                  etiqueta: s.nombre,
+                  valor: _fmt(s.valores.last, vista.decimales),
+                  unidad: vista.unidad,
+                  colorPunto: s.color,
+                ),
             ],
           ),
           const SizedBox(height: 6),
-          const Text(
-            'Diferencia: 5,7 L/s (4,4 %) · Rango 110–140',
-            style: TextStyle(
+          Text(
+            '${vista.detalle} · ${vista.textoRango}',
+            style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w500,
               color: AppColors.textoSecundario,
@@ -265,119 +383,164 @@ class _MonitoreoScreenState extends State<MonitoreoScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Gráfica de Líneas fl_chart con tooltip fuera de rango
           SizedBox(
-            height: 160,
+            height: 170,
             child: LineChart(
               LineChartData(
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,
-                  getDrawingHorizontalLine: (val) => FlLine(
-                    color: AppColors.bordes,
-                    strokeWidth: 0.8,
+                  getDrawingHorizontalLine: (val) =>
+                      const FlLine(color: AppColors.bordes, strokeWidth: 0.8),
+                ),
+                extraLinesData: ExtraLinesData(
+                  horizontalLines: [
+                    for (final l in [?vista.minimo, ?vista.maximo])
+                      HorizontalLine(
+                        y: l,
+                        color: AppColors.advertencia,
+                        strokeWidth: 1.2,
+                        dashArray: [5, 4],
+                      ),
+                  ],
+                ),
+                lineTouchData: LineTouchData(
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipColor: (_) => AppColors.azulMarino,
+                    getTooltipItems: (spots) => [
+                      for (final s in spots)
+                        LineTooltipItem(
+                          '${s.barIndex == 0 ? '${DateFormat('HH:00').format(horas[s.x.toInt()].hora)}\n' : ''}'
+                          '${vista.series[s.barIndex].nombre}: ${_fmt(s.y, vista.decimales)}$u',
+                          const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 titlesData: FlTitlesData(
-                  leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 34,
+                      getTitlesWidget: (value, meta) {
+                        if (value == meta.min || value == meta.max) {
+                          return const SizedBox.shrink();
+                        }
+                        return Text(
+                          _fmt(value, vista.decimales == 2 ? 1 : 0),
+                          style: const TextStyle(
+                            fontSize: 9,
+                            color: AppColors.textoSecundario,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
                       reservedSize: 22,
+                      interval: 1,
                       getTitlesWidget: (value, meta) {
-                        switch (value.toInt()) {
-                          case 0:
-                            return const Text('10:00', style: TextStyle(fontSize: 9, color: AppColors.textoSecundario));
-                          case 2:
-                            return const Text('14:00', style: TextStyle(fontSize: 9, color: AppColors.textoSecundario));
-                          case 4:
-                            return const Text('18:00', style: TextStyle(fontSize: 9, color: AppColors.textoSecundario));
-                          case 6:
-                            return const Text('22:00', style: TextStyle(fontSize: 9, color: AppColors.textoSecundario));
-                          case 8:
-                            return const Text('02:00', style: TextStyle(fontSize: 9, color: AppColors.textoSecundario));
-                          case 10:
-                            return const Text('06:00', style: TextStyle(fontSize: 9, color: AppColors.textoSecundario));
-                          case 11:
-                            return const Text('Ahora', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.azulMarino));
+                        final i = value.toInt();
+                        if (i == ultimo) {
+                          return const Text(
+                            'Ahora',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.azulMarino,
+                            ),
+                          );
                         }
-                        return const SizedBox.shrink();
+                        if (i % 6 != 0 || ultimo - i < 3) {
+                          return const SizedBox.shrink();
+                        }
+                        return Text(
+                          DateFormat('HH:00').format(horas[i].hora),
+                          style: const TextStyle(
+                            fontSize: 9,
+                            color: AppColors.textoSecundario,
+                          ),
+                        );
                       },
                     ),
                   ),
                 ),
                 borderData: FlBorderData(show: false),
                 minX: 0,
-                maxX: 11,
-                minY: 90,
-                maxY: 155,
+                maxX: ultimo.toDouble(),
+                minY: bajo - margen,
+                maxY: alto + margen,
                 lineBarsData: [
-                  // Línea Entrada (Azul Primario)
-                  LineChartBarData(
-                    spots: const [
-                      FlSpot(0, 115),
-                      FlSpot(2, 120),
-                      FlSpot(4, 118),
-                      FlSpot(6, 125),
-                      FlSpot(8, 110),
-                      FlSpot(9, 141.2), // Fuera de rango
-                      FlSpot(10, 138),
-                      FlSpot(11, 128.4),
-                    ],
-                    isCurved: true,
-                    curveSmoothness: 0.35,
-                    color: AppColors.azulPrimario,
-                    barWidth: 2.5,
-                    dotData: FlDotData(
-                      show: true,
-                      checkToShowDot: (spot, barData) => spot.y > 140, // Marca el punto fuera de rango
-                      getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
-                        radius: 5,
-                        color: AppColors.critico,
-                        strokeWidth: 2,
-                        strokeColor: AppColors.blanco,
+                  for (var b = 0; b < vista.series.length; b++)
+                    LineChartBarData(
+                      spots: [
+                        for (var i = 0; i < vista.series[b].valores.length; i++)
+                          FlSpot(i.toDouble(), vista.series[b].valores[i]),
+                      ],
+                      isCurved: true,
+                      curveSmoothness: 0.3,
+                      preventCurveOverShooting: true,
+                      color: vista.series[b].color,
+                      barWidth: 2.5,
+                      belowBarData: BarAreaData(
+                        show: vista.series.length == 1,
+                        color: vista.series[b].color.withAlpha(28),
+                      ),
+                      dotData: FlDotData(
+                        show: b == 0,
+                        // Marca en rojo las horas fuera de rango
+                        checkToShowDot: (spot, _) => vista.fueraDeRango(spot.y),
+                        getDotPainter: (spot, percent, barData, index) =>
+                            FlDotCirclePainter(
+                              radius: 4.5,
+                              color: AppColors.critico,
+                              strokeWidth: 2,
+                              strokeColor: AppColors.blanco,
+                            ),
                       ),
                     ),
-                  ),
-                  // Línea Salida (Turquesa)
-                  LineChartBarData(
-                    spots: const [
-                      FlSpot(0, 110),
-                      FlSpot(2, 114),
-                      FlSpot(4, 112),
-                      FlSpot(6, 119),
-                      FlSpot(8, 106),
-                      FlSpot(9, 134.6),
-                      FlSpot(10, 131),
-                      FlSpot(11, 122.7),
-                    ],
-                    isCurved: true,
-                    curveSmoothness: 0.35,
-                    color: AppColors.turquesa,
-                    barWidth: 2.5,
-                    dotData: const FlDotData(show: false),
-                  ),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 12),
 
-          // Resumen min / avg / max
+          // Resumen máximo / mínimo / promedio de la serie principal
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
               color: AppColors.fondoGeneral,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Row(
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _MiniEstadistica(label: 'Máximo 24h', valor: '142,6 L/s', esAlerta: true),
-                _MiniEstadistica(label: 'Mínimo 24h', valor: '103,1 L/s'),
-                _MiniEstadistica(label: 'Promedio', valor: '124,3 L/s'),
+                _MiniEstadistica(
+                  label: 'Máximo 24h',
+                  valor: '${_fmt(maximo, vista.decimales)}$u',
+                  esAlerta: vista.fueraDeRango(maximo),
+                ),
+                _MiniEstadistica(
+                  label: 'Mínimo 24h',
+                  valor: '${_fmt(minimo, vista.decimales)}$u',
+                  esAlerta: vista.fueraDeRango(minimo),
+                ),
+                _MiniEstadistica(
+                  label: 'Promedio',
+                  valor: '${_fmt(promedio, vista.decimales)}$u',
+                ),
               ],
             ),
           ),
@@ -415,7 +578,9 @@ class _SegmentButton extends StatelessWidget {
             style: TextStyle(
               fontSize: 12,
               fontWeight: seleccionado ? FontWeight.w700 : FontWeight.w500,
-              color: seleccionado ? AppColors.azulMarino : AppColors.textoSecundario,
+              color: seleccionado
+                  ? AppColors.azulMarino
+                  : AppColors.textoSecundario,
             ),
           ),
         ),
@@ -448,14 +613,14 @@ class _ItemValorCaudal extends StatelessWidget {
           width: 8,
           height: 8,
           margin: const EdgeInsets.only(right: 6),
-          decoration: BoxDecoration(
-            color: colorPunto,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: colorPunto, shape: BoxShape.circle),
         ),
         Text(
           '$etiqueta ',
-          style: const TextStyle(fontSize: 12, color: AppColors.textoSecundario),
+          style: const TextStyle(
+            fontSize: 12,
+            color: AppColors.textoSecundario,
+          ),
         ),
         Text(
           valor,
@@ -468,7 +633,10 @@ class _ItemValorCaudal extends StatelessWidget {
         const SizedBox(width: 3),
         Text(
           unidad,
-          style: const TextStyle(fontSize: 11, color: AppColors.textoSecundario),
+          style: const TextStyle(
+            fontSize: 11,
+            color: AppColors.textoSecundario,
+          ),
         ),
       ],
     );
@@ -493,7 +661,10 @@ class _MiniEstadistica extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 10, color: AppColors.textoSecundario),
+          style: const TextStyle(
+            fontSize: 10,
+            color: AppColors.textoSecundario,
+          ),
         ),
         const SizedBox(height: 1),
         Text(
@@ -601,7 +772,11 @@ class _MedidorPresion extends StatelessWidget {
         children: [
           const Row(
             children: [
-              Icon(Icons.speed_rounded, size: 16, color: AppColors.azulPrimario),
+              Icon(
+                Icons.speed_rounded,
+                size: 16,
+                color: AppColors.azulPrimario,
+              ),
               SizedBox(width: 6),
               Text(
                 'Presión de red',
@@ -658,7 +833,10 @@ class _MedidorNivelTanque extends StatelessWidget {
   final int porcentaje;
   final int volumenM3;
 
-  const _MedidorNivelTanque({required this.porcentaje, required this.volumenM3});
+  const _MedidorNivelTanque({
+    required this.porcentaje,
+    required this.volumenM3,
+  });
 
   @override
   Widget build(BuildContext context) {

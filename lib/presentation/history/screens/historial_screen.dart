@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
 import '../../../core/constants/app_colors.dart';
 import '../../../core/routes/app_routes.dart';
+import '../../../domain/telemetria/telemetria_planta.dart';
+import '../../../domain/validators/validador_rangos.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../common/widgets/fila_registro.dart';
 import '../../reports/screens/exportar_reportes_screen.dart';
@@ -22,100 +26,141 @@ class _HistorialScreenState extends State<HistorialScreen> {
   int _filtroRapido = 0; // 0: Hoy, 1: 7 días, 2: 30 días, 3: Fuera de rango
   bool _vistaTablaCaudal = true; // Por defecto vista de tabla como el Figma
 
-  // Datos de tabla caudal fieles a Figma (pantalla 04 Registros)
-  final List<Map<String, dynamic>> _registrosFigma = [
-    {
-      'fecha': '17/11/2026',
-      'hora': '08:00',
-      'entrada': '129,0',
-      'salida': '124,1',
-      'volumen': '446,8',
-      'fueraDeRango': false,
-      'motivo': null,
-    },
-    {
-      'fecha': '17/11/2026',
-      'hora': '07:00',
-      'entrada': '141,2',
-      'salida': '134,6',
-      'volumen': '484,6',
-      'fueraDeRango': true,
-      'motivo':
-          'Caudal de entrada (141,2 L/s) superó el límite máximo operativo de 140,0 L/s (+1,2 L/s, +0,9 %). Riesgo de sobrecargar la floculación y sedimentación.',
-    },
-    {
-      'fecha': '17/11/2026',
-      'hora': '06:00',
-      'entrada': '138,9',
-      'salida': '132,0',
-      'volumen': '478,1',
-      'fueraDeRango': false,
-      'motivo': null,
-    },
-    {
-      'fecha': '17/11/2026',
-      'hora': '05:00',
-      'entrada': '133,5',
-      'salida': '127,4',
-      'volumen': '458,6',
-      'fueraDeRango': false,
-      'motivo': null,
-    },
-    {
-      'fecha': '17/11/2026',
-      'hora': '04:00',
-      'entrada': '124,6',
-      'salida': '118,9',
-      'volumen': '428,0',
-      'fueraDeRango': false,
-      'motivo': null,
-    },
-    {
-      'fecha': '17/11/2026',
-      'hora': '03:00',
-      'entrada': '110,8',
-      'salida': '105,6',
-      'volumen': '380,2',
-      'fueraDeRango': false,
-      'motivo': null,
-    },
-    {
-      'fecha': '17/11/2026',
-      'hora': '02:00',
-      'entrada': '103,1',
-      'salida': '98,2',
-      'volumen': '353,5',
-      'fueraDeRango': false,
-      'motivo': null,
-    },
-    {
-      'fecha': '17/11/2026',
-      'hora': '01:00',
-      'entrada': '104,9',
-      'salida': '100,1',
-      'volumen': '360,4',
-      'fueraDeRango': false,
-      'motivo': null,
-    },
-    {
-      'fecha': '17/11/2026',
-      'hora': '00:00',
-      'entrada': '108,7',
-      'salida': '103,8',
-      'volumen': '373,7',
-      'fueraDeRango': false,
-      'motivo': null,
-    },
-    {
-      'fecha': '16/11/2026',
-      'hora': '23:00',
-      'entrada': '113,6',
-      'salida': '108,5',
-      'volumen': '390,6',
-      'fueraDeRango': false,
-      'motivo': null,
-    },
-  ];
+  /// Cuántos bloques de historial se muestran (cada "Cargar registros anteriores" suma uno).
+  int _bloques = 1;
+
+  static final _f1 = NumberFormat('#,##0.0', 'es_CO');
+  static final _fecha = DateFormat('dd/MM/yyyy');
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _aplicarFiltroAlProveedor(),
+    );
+  }
+
+  void _cambiarFiltro(int filtro) {
+    setState(() {
+      _filtroRapido = filtro;
+      _bloques = 1;
+    });
+    _aplicarFiltroAlProveedor();
+  }
+
+  /// La vista de tarjetas usa el mismo periodo que la tabla.
+  void _aplicarFiltroAlProveedor() {
+    if (!mounted) return;
+    final provider = context.read<HistorialProvider>();
+    final hoy = TelemetriaPlanta.inicioDia(DateTime.now());
+    final dias = switch (_filtroRapido) {
+      0 => 1,
+      1 => 7,
+      _ => 30,
+    };
+    provider.setRangoFechas(hoy.subtract(Duration(days: dias - 1)), hoy);
+    provider.setSoloAlertas(_filtroRapido == 3);
+  }
+
+  String get _textoPeriodo {
+    final hoy = DateTime.now();
+    switch (_filtroRapido) {
+      case 0:
+        final dia = DateFormat("EEE d 'de' MMM", 'es_ES').format(hoy);
+        final extra = _bloques > 1
+            ? ' y ${_bloques - 1} día(s) anteriores'
+            : '';
+        return 'Hoy, $dia$extra · Intervalo 1 h';
+      case 1:
+        return 'Últimos ${7 * _bloques} días · Promedio diario';
+      case 2:
+        return 'Últimos ${30 * _bloques} días · Promedio diario';
+      default:
+        return 'Horas fuera de rango · Últimos ${30 * _bloques} días';
+    }
+  }
+
+  _FilaCaudal _filaHora(MuestraTelemetria m) {
+    final evaluacion = ValidadorRangos.validarCaudalEntrada(m.caudalEntrada);
+    return _FilaCaudal(
+      fecha: _fecha.format(m.hora),
+      hora: DateFormat('HH:00').format(m.hora),
+      entrada: m.caudalEntrada,
+      salida: m.caudalSalida,
+      volumen: m.volumenM3,
+      fueraDeRango: !evaluacion.cumple,
+      motivo: evaluacion.cumple ? null : evaluacion.mensajeCompleto,
+    );
+  }
+
+  _FilaCaudal _filaDia(ResumenPeriodo dia, DateTime ahora) {
+    final fuera = dia.horasFueraDeRango;
+    String? motivo;
+    if (fuera.isNotEmpty) {
+      final peor = fuera.reduce(
+        (a, b) => _desvio(a.caudalEntrada) >= _desvio(b.caudalEntrada) ? a : b,
+      );
+      final evaluacion = ValidadorRangos.validarCaudalEntrada(
+        peor.caudalEntrada,
+      );
+      motivo =
+          '${fuera.length} ${fuera.length == 1 ? 'hora' : 'horas'} con caudal de entrada fuera del rango '
+          '${_f1.format(ValidadorRangos.caudalEntradaMin)}–${_f1.format(ValidadorRangos.caudalEntradaMax)} L/s. '
+          'La mayor desviación fue a las ${DateFormat('HH:00').format(peor.hora)}: ${evaluacion.mensajeCompleto}';
+    }
+    final esHoy = TelemetriaPlanta.inicioDia(ahora) == dia.inicio;
+    return _FilaCaudal(
+      fecha: _fecha.format(dia.inicio),
+      hora: esHoy ? 'Hasta ${DateFormat('HH:00').format(ahora)}' : 'Prom. día',
+      entrada: dia.entradaPromedio,
+      salida: dia.salidaPromedio,
+      volumen: dia.volumenM3,
+      fueraDeRango: fuera.isNotEmpty,
+      motivo: motivo,
+    );
+  }
+
+  static double _desvio(double v) {
+    if (v > ValidadorRangos.caudalEntradaMax) {
+      return v - ValidadorRangos.caudalEntradaMax;
+    }
+    if (v < ValidadorRangos.caudalEntradaMin) {
+      return ValidadorRangos.caudalEntradaMin - v;
+    }
+    return 0;
+  }
+
+  /// Filas de la tabla según el filtro: horas de hoy, días (7 o 30) u horas fuera de rango.
+  List<_FilaCaudal> _filasCaudal() {
+    final ahora = DateTime.now();
+    final hoy = TelemetriaPlanta.inicioDia(ahora);
+    final manana = hoy.add(const Duration(days: 1));
+    switch (_filtroRapido) {
+      case 0:
+        final desde = hoy.subtract(Duration(days: _bloques - 1));
+        return TelemetriaPlanta.rango(
+          desde,
+          manana,
+          ahora: ahora,
+        ).reversed.map(_filaHora).toList();
+      case 1:
+      case 2:
+        final dias = (_filtroRapido == 1 ? 7 : 30) * _bloques;
+        return TelemetriaPlanta.resumenDiario(
+          hoy.subtract(Duration(days: dias - 1)),
+          hoy,
+          ahora: ahora,
+        ).reversed.map((d) => _filaDia(d, ahora)).toList();
+      default:
+        final desde = hoy.subtract(Duration(days: 30 * _bloques - 1));
+        return TelemetriaPlanta.rango(desde, manana, ahora: ahora)
+            .where((m) => m.caudalFueraDeRango)
+            .toList()
+            .reversed
+            .map(_filaHora)
+            .toList();
+    }
+  }
 
   @override
   void dispose() {
@@ -161,16 +206,26 @@ class _HistorialScreenState extends State<HistorialScreen> {
           IconButton(
             tooltip: 'Cambiar modo de visualización',
             icon: Icon(
-              _vistaTablaCaudal ? Icons.view_agenda_outlined : Icons.table_chart_outlined,
+              _vistaTablaCaudal
+                  ? Icons.view_agenda_outlined
+                  : Icons.table_chart_outlined,
               color: AppColors.azulMarino,
               size: 22,
             ),
-            onPressed: () => setState(() => _vistaTablaCaudal = !_vistaTablaCaudal),
+            onPressed: () =>
+                setState(() => _vistaTablaCaudal = !_vistaTablaCaudal),
           ),
           IconButton(
             tooltip: 'Descargar / Exportar',
-            icon: const Icon(Icons.file_download_outlined, color: AppColors.azulMarino, size: 22),
-            onPressed: () => context.push(AppRoutes.exportar, extra: TipoFormatoExportar.historial),
+            icon: const Icon(
+              Icons.file_download_outlined,
+              color: AppColors.azulMarino,
+              size: 22,
+            ),
+            onPressed: () => context.push(
+              AppRoutes.exportar,
+              extra: TipoFormatoExportar.historial,
+            ),
           ),
         ],
       ),
@@ -194,8 +249,15 @@ class _HistorialScreenState extends State<HistorialScreen> {
                         controller: _busquedaController,
                         decoration: InputDecoration(
                           hintText: 'Buscar por fecha u hora...',
-                          hintStyle: const TextStyle(fontSize: 13, color: AppColors.textoSecundario),
-                          prefixIcon: const Icon(Icons.search_rounded, size: 20, color: AppColors.textoSecundario),
+                          hintStyle: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textoSecundario,
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.search_rounded,
+                            size: 20,
+                            color: AppColors.textoSecundario,
+                          ),
                           suffixIcon: _busquedaController.text.isNotEmpty
                               ? IconButton(
                                   icon: const Icon(Icons.clear, size: 16),
@@ -206,7 +268,9 @@ class _HistorialScreenState extends State<HistorialScreen> {
                                   },
                                 )
                               : null,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 10,
+                          ),
                           border: InputBorder.none,
                           enabledBorder: InputBorder.none,
                           focusedBorder: InputBorder.none,
@@ -228,7 +292,11 @@ class _HistorialScreenState extends State<HistorialScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: IconButton(
-                      icon: const Icon(Icons.tune_rounded, size: 20, color: AppColors.blanco),
+                      icon: const Icon(
+                        Icons.tune_rounded,
+                        size: 20,
+                        color: AppColors.blanco,
+                      ),
                       onPressed: () => FiltroHistorialSheet.mostrar(context),
                       tooltip: 'Filtros avanzados',
                     ),
@@ -248,26 +316,26 @@ class _HistorialScreenState extends State<HistorialScreen> {
                     _ChipFiltroFigma(
                       etiqueta: 'Hoy',
                       seleccionado: _filtroRapido == 0,
-                      alPulsar: () => setState(() => _filtroRapido = 0),
+                      alPulsar: () => _cambiarFiltro(0),
                     ),
                     const SizedBox(width: 8),
                     _ChipFiltroFigma(
                       etiqueta: '7 días',
                       seleccionado: _filtroRapido == 1,
-                      alPulsar: () => setState(() => _filtroRapido = 1),
+                      alPulsar: () => _cambiarFiltro(1),
                     ),
                     const SizedBox(width: 8),
                     _ChipFiltroFigma(
                       etiqueta: '30 días',
                       seleccionado: _filtroRapido == 2,
-                      alPulsar: () => setState(() => _filtroRapido = 2),
+                      alPulsar: () => _cambiarFiltro(2),
                     ),
                     const SizedBox(width: 8),
                     _ChipFiltroFigma(
                       etiqueta: 'Fuera de rango',
                       seleccionado: _filtroRapido == 3,
                       conPuntoRojo: true,
-                      alPulsar: () => setState(() => _filtroRapido = 3),
+                      alPulsar: () => _cambiarFiltro(3),
                     ),
                   ],
                 ),
@@ -314,12 +382,18 @@ class _HistorialScreenState extends State<HistorialScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Martes 17 nov 2026 · Intervalo 1 h',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textoSecundario,
-                      fontWeight: FontWeight.w500,
+                  Flexible(
+                    child: Text(
+                      _vistaTablaCaudal
+                          ? _textoPeriodo
+                          : 'Registros de la planta · ${_textoPeriodo.split(' · ').first}',
+                      key: const Key('texto_periodo'),
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textoSecundario,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                   Text(
@@ -366,19 +440,17 @@ class _HistorialScreenState extends State<HistorialScreen> {
     );
   }
 
-  List<Map<String, dynamic>> get _registrosFiltrados {
+  List<_FilaCaudal> get _registrosFiltrados {
     final busq = _busquedaController.text.trim().toLowerCase();
-    return _registrosFigma.where((reg) {
-      if (_filtroRapido == 3 && !(reg['fueraDeRango'] as bool)) {
-        return false;
-      }
-      if (busq.isNotEmpty) {
-        final f = (reg['fecha'] as String).toLowerCase();
-        final h = (reg['hora'] as String).toLowerCase();
-        if (!f.contains(busq) && !h.contains(busq)) return false;
-      }
-      return true;
-    }).toList();
+    final filas = _filasCaudal();
+    if (busq.isEmpty) return filas;
+    return filas
+        .where(
+          (f) =>
+              f.fecha.toLowerCase().contains(busq) ||
+              f.hora.toLowerCase().contains(busq),
+        )
+        .toList();
   }
 
   Widget _construirTablaCaudalFigma() {
@@ -455,21 +527,37 @@ class _HistorialScreenState extends State<HistorialScreen> {
 
             // Filas
             Expanded(
-              child: ListView.builder(
-                itemCount: registros.length,
-                itemBuilder: (context, index) {
-                  final reg = registros[index];
-                  return FilaRegistro(
-                    fecha: reg['fecha'] as String,
-                    hora: reg['hora'] as String,
-                    entrada: reg['entrada'] as String,
-                    salida: reg['salida'] as String,
-                    volumen: reg['volumen'] as String,
-                    fueraDeRango: reg['fueraDeRango'] as bool,
-                    mensajeExplicativo: reg['motivo'] as String?,
-                  );
-                },
-              ),
+              child: registros.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          _filtroRapido == 3
+                              ? 'No hubo horas con caudal fuera de rango en este periodo.'
+                              : 'No hay registros que coincidan con la búsqueda.',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textoSecundario,
+                          ),
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: registros.length,
+                      itemBuilder: (context, index) {
+                        final reg = registros[index];
+                        return FilaRegistro(
+                          fecha: reg.fecha,
+                          hora: reg.hora,
+                          entrada: _f1.format(reg.entrada),
+                          salida: _f1.format(reg.salida),
+                          volumen: _f1.format(reg.volumen),
+                          fueraDeRango: reg.fueraDeRango,
+                          mensajeExplicativo: reg.motivo,
+                        );
+                      },
+                    ),
             ),
 
             // Pie de tabla con leyenda y total
@@ -477,33 +565,43 @@ class _HistorialScreenState extends State<HistorialScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: const BoxDecoration(
                 color: AppColors.blanco,
-                border: Border(top: BorderSide(color: AppColors.bordes, width: 0.8)),
+                border: Border(
+                  top: BorderSide(color: AppColors.bordes, width: 0.8),
+                ),
               ),
               child: Column(
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: const BoxDecoration(
-                              color: AppColors.critico,
-                              shape: BoxShape.circle,
+                      Flexible(
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: AppColors.critico,
+                                shape: BoxShape.circle,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 6),
-                          const Text(
-                            'Registro fuera de rango',
-                            style: TextStyle(fontSize: 11, color: AppColors.textoSecundario),
-                          ),
-                        ],
+                            const SizedBox(width: 6),
+                            const Flexible(
+                              child: Text(
+                                'Registro fuera de rango',
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textoSecundario,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      const Text(
-                        'Total: 4.286 m³',
-                        style: TextStyle(
+                      Text(
+                        'Total: ${NumberFormat('#,##0', 'es_CO').format(registros.fold(0.0, (t, r) => t + r.volumen))} m³',
+                        style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
                           color: AppColors.textoPrincipal,
@@ -516,12 +614,11 @@ class _HistorialScreenState extends State<HistorialScreen> {
                     width: double.infinity,
                     height: 36,
                     child: OutlinedButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Se cargaron registros históricos de jornadas previas')),
-                        );
-                      },
-                      child: const Text('Cargar registros anteriores', style: TextStyle(fontSize: 12)),
+                      onPressed: () => setState(() => _bloques++),
+                      child: const Text(
+                        'Cargar registros anteriores',
+                        style: TextStyle(fontSize: 12),
+                      ),
                     ),
                   ),
                 ],
@@ -551,9 +648,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
       itemCount: items.length,
       itemBuilder: (context, index) {
         final item = items[index];
-        return TarjetaItemHistorial(
-          item: item,
-        );
+        return TarjetaItemHistorial(item: item);
       },
     );
   }
@@ -573,11 +668,18 @@ class _HistorialScreenState extends State<HistorialScreen> {
           children: [
             const Text(
               'Seleccionar Tipo de Registro',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textoPrincipal),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textoPrincipal,
+              ),
             ),
             const SizedBox(height: 16),
             ListTile(
-              leading: const Icon(Icons.science_outlined, color: AppColors.azulPrimario),
+              leading: const Icon(
+                Icons.science_outlined,
+                color: AppColors.azulPrimario,
+              ),
               title: const Text('Análisis Fisicoquímico (DO-F-070)'),
               subtitle: const Text('pH, cloro, turbidez, color en red'),
               onTap: () {
@@ -586,7 +688,10 @@ class _HistorialScreenState extends State<HistorialScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.speed_outlined, color: AppColors.turquesa),
+              leading: const Icon(
+                Icons.speed_outlined,
+                color: AppColors.turquesa,
+              ),
               title: const Text('Lectura de Medidores'),
               subtitle: const Text('Balance hídrico y cálculo de pérdidas'),
               onTap: () {
@@ -595,7 +700,10 @@ class _HistorialScreenState extends State<HistorialScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.water_outlined, color: AppColors.azulMarino),
+              leading: const Icon(
+                Icons.water_outlined,
+                color: AppColors.azulMarino,
+              ),
               title: const Text('Aforo Caudal Quebrada La Seca'),
               subtitle: const Text('Método flotador y sección transversal'),
               onTap: () {
@@ -655,7 +763,9 @@ class _ChipFiltroFigma extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: seleccionado ? FontWeight.w700 : FontWeight.w500,
-                color: seleccionado ? AppColors.blanco : AppColors.textoPrincipal,
+                color: seleccionado
+                    ? AppColors.blanco
+                    : AppColors.textoPrincipal,
               ),
             ),
           ],
@@ -709,4 +819,25 @@ class _BotonAccesoModulo extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Fila de la tabla de caudal (una hora o el promedio de un día).
+class _FilaCaudal {
+  final String fecha;
+  final String hora;
+  final double entrada;
+  final double salida;
+  final double volumen;
+  final bool fueraDeRango;
+  final String? motivo;
+
+  const _FilaCaudal({
+    required this.fecha,
+    required this.hora,
+    required this.entrada,
+    required this.salida,
+    required this.volumen,
+    required this.fueraDeRango,
+    required this.motivo,
+  });
 }

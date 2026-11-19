@@ -1,8 +1,13 @@
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+
 import '../../../core/constants/app_colors.dart';
 import '../../../core/routes/app_routes.dart';
+import '../../../domain/telemetria/telemetria_planta.dart';
 
 class EstadisticasScreen extends StatefulWidget {
   const EstadisticasScreen({super.key});
@@ -11,11 +16,181 @@ class EstadisticasScreen extends StatefulWidget {
   State<EstadisticasScreen> createState() => _EstadisticasScreenState();
 }
 
+/// Barra de la gráfica principal: una hora (vista Día) o un día (vistas Semana y Mes).
+class _Barra {
+  final String etiqueta;
+  final String etiquetaLarga;
+  final double? valor; // null = periodo futuro, sin datos
+  const _Barra(this.etiqueta, this.etiquetaLarga, this.valor);
+}
+
+class _PuntoEvolucion {
+  final String etiqueta;
+  final double valor;
+  const _PuntoEvolucion(this.etiqueta, this.valor);
+}
+
 class _EstadisticasScreenState extends State<EstadisticasScreen> {
   int _filtroTemporal = 1; // 0: Día, 1: Semana, 2: Mes
+  DateTime _referencia = DateTime.now();
+
+  static const double _metaDiariaM3 = 11000;
+  static final _f0 = NumberFormat('#,##0', 'es_CO');
+  static final _f1 = NumberFormat('#,##0.0', 'es_CO');
+
+  // ---------------------------------------------------------------------------
+  // Periodos
+  // ---------------------------------------------------------------------------
+  DateTime _inicioPeriodo(DateTime ref) => switch (_filtroTemporal) {
+    0 => TelemetriaPlanta.inicioDia(ref),
+    1 => TelemetriaPlanta.inicioSemana(ref),
+    _ => TelemetriaPlanta.inicioMes(ref),
+  };
+
+  DateTime _finPeriodo(DateTime inicio) => switch (_filtroTemporal) {
+    0 => DateTime(inicio.year, inicio.month, inicio.day + 1),
+    1 => DateTime(inicio.year, inicio.month, inicio.day + 7),
+    _ => DateTime(inicio.year, inicio.month + 1),
+  };
+
+  DateTime _desplazar(DateTime ref, int pasos) => switch (_filtroTemporal) {
+    0 => DateTime(ref.year, ref.month, ref.day + pasos),
+    1 => DateTime(ref.year, ref.month, ref.day + 7 * pasos),
+    _ => DateTime(ref.year, ref.month + pasos, 1),
+  };
+
+  String _etiquetaPeriodo(DateTime inicio) {
+    switch (_filtroTemporal) {
+      case 0:
+        return _capitalizar(
+          DateFormat("EEE d 'de' MMM yyyy", 'es_ES').format(inicio),
+        );
+      case 1:
+        final fin = DateTime(inicio.year, inicio.month, inicio.day + 6);
+        final mismoMes = fin.month == inicio.month;
+        return '${DateFormat(mismoMes ? 'd' : 'd MMM', 'es_ES').format(inicio)} – '
+            '${DateFormat('d MMM yyyy', 'es_ES').format(fin)}';
+      default:
+        return _capitalizar(DateFormat('MMMM yyyy', 'es_ES').format(inicio));
+    }
+  }
+
+  static String _capitalizar(String t) =>
+      t.isEmpty ? t : t[0].toUpperCase() + t.substring(1);
+
+  double get _meta => _filtroTemporal == 0 ? _metaDiariaM3 / 24 : _metaDiariaM3;
+
+  List<_Barra> _barras(DateTime inicio, DateTime ahora) {
+    if (_filtroTemporal == 0) {
+      return [
+        for (var h = 0; h < 24; h++)
+          () {
+            final hora = DateTime(inicio.year, inicio.month, inicio.day, h);
+            final valor = hora.isAfter(ahora)
+                ? null
+                : TelemetriaPlanta.muestra(hora).volumenM3;
+            return _Barra(
+              h % 4 == 0 ? '${h.toString().padLeft(2, '0')}h' : '',
+              '${h.toString().padLeft(2, '0')}:00',
+              valor,
+            );
+          }(),
+      ];
+    }
+    final dias = _finPeriodo(inicio).difference(inicio).inHours ~/ 24;
+    const nombres = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+    return [
+      for (var d = 0; d < dias; d++)
+        () {
+          final dia = DateTime(inicio.year, inicio.month, inicio.day + d);
+          final resumen = TelemetriaPlanta.resumenDia(dia, ahora: ahora);
+          final etiqueta = _filtroTemporal == 1
+              ? nombres[dia.weekday - 1]
+              : (dia.day == 1 || dia.day % 5 == 0 ? '${dia.day}' : '');
+          return _Barra(
+            etiqueta,
+            _capitalizar(DateFormat("EEEE d 'de' MMM", 'es_ES').format(dia)),
+            resumen.tieneDatos ? resumen.volumenM3 : null,
+          );
+        }(),
+    ];
+  }
+
+  /// Gráfica inferior: Día = caudal hora a hora; Semana = 8 semanas; Mes = 6 meses (promedio diario).
+  List<_PuntoEvolucion> _evolucion(DateTime inicio, DateTime ahora) {
+    if (_filtroTemporal == 0) {
+      final muestras = TelemetriaPlanta.resumenDia(
+        inicio,
+        ahora: ahora,
+      ).muestras;
+      return [
+        for (final m in muestras)
+          _PuntoEvolucion(DateFormat('HH:00').format(m.hora), m.caudalEntrada),
+      ];
+    }
+    final cantidad = _filtroTemporal == 1 ? 8 : 6;
+    final puntos = <_PuntoEvolucion>[];
+    for (var i = cantidad - 1; i >= 0; i--) {
+      final ini = _inicioPeriodo(_desplazar(inicio, -i));
+      final resumen = TelemetriaPlanta.resumenRango(
+        ini,
+        _finPeriodo(ini),
+        ahora: ahora,
+      );
+      if (!resumen.tieneDatos) continue;
+      final promedioDiario = resumen.volumenM3 / resumen.horas * 24;
+      final etiqueta = _filtroTemporal == 1
+          ? DateFormat('d MMM', 'es_ES').format(ini)
+          : _capitalizar(DateFormat('MMM', 'es_ES').format(ini));
+      puntos.add(_PuntoEvolucion(etiqueta, promedioDiario));
+    }
+    return puntos;
+  }
+
+  /// Variación porcentual comparando con las mismas unidades del periodo anterior.
+  double? _variacion(double actual, double anterior) =>
+      anterior == 0 ? null : (actual - anterior) / anterior * 100;
 
   @override
   Widget build(BuildContext context) {
+    final ahora = DateTime.now();
+    final inicio = _inicioPeriodo(_referencia);
+    final fin = _finPeriodo(inicio);
+    final barras = _barras(inicio, ahora);
+    final conDatos = barras.where((b) => b.valor != null).toList();
+    final total = conDatos.fold(0.0, (s, b) => s + b.valor!);
+    final promedio = conDatos.isEmpty ? 0.0 : total / conDatos.length;
+    final eficiencia = TelemetriaPlanta.resumenRango(
+      inicio,
+      fin,
+      ahora: ahora,
+    ).eficiencia;
+
+    // Periodo anterior, recortado a la misma cantidad de horas/días con datos
+    final inicioAnterior = _inicioPeriodo(_desplazar(inicio, -1));
+    final barrasAnteriores = _barras(
+      inicioAnterior,
+      ahora,
+    ).where((b) => b.valor != null).take(conDatos.length).toList();
+    final totalAnterior = barrasAnteriores.fold(0.0, (s, b) => s + b.valor!);
+    final promedioAnterior = barrasAnteriores.isEmpty
+        ? 0.0
+        : totalAnterior / barrasAnteriores.length;
+    final finAnterior = _finPeriodo(inicioAnterior);
+    final eficienciaAnterior = TelemetriaPlanta.resumenRango(
+      inicioAnterior,
+      finAnterior,
+      ahora: ahora,
+    ).eficiencia;
+
+    final puedeAvanzar = !_finPeriodo(inicio).isAfter(ahora);
+    final unidad = _filtroTemporal == 0 ? 'hora' : 'día';
+    final nombreTotal = switch (_filtroTemporal) {
+      0 => 'Total día',
+      1 => 'Total semana',
+      _ => 'Total mes',
+    };
+
     return Scaffold(
       backgroundColor: AppColors.fondoGeneral,
       appBar: AppBar(
@@ -35,7 +210,7 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
               ),
             ),
             Text(
-              'Rendimiento del tratamiento',
+              'Rendimiento del tratamiento · datos simulados',
               style: TextStyle(
                 fontSize: 11,
                 color: AppColors.textoSecundario,
@@ -46,7 +221,11 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.file_download_outlined, color: AppColors.azulMarino, size: 22),
+            icon: const Icon(
+              Icons.file_download_outlined,
+              color: AppColors.azulMarino,
+              size: 22,
+            ),
             onPressed: () => context.push(AppRoutes.exportar),
             tooltip: 'Exportar Reportes',
           ),
@@ -66,96 +245,123 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
               ),
               child: Row(
                 children: [
-                  _BotonPestanaTemporal(
-                    texto: 'Día',
-                    activo: _filtroTemporal == 0,
-                    alPulsar: () => setState(() => _filtroTemporal = 0),
-                  ),
-                  _BotonPestanaTemporal(
-                    texto: 'Semana',
-                    activo: _filtroTemporal == 1,
-                    alPulsar: () => setState(() => _filtroTemporal = 1),
-                  ),
-                  _BotonPestanaTemporal(
-                    texto: 'Mes',
-                    activo: _filtroTemporal == 2,
-                    alPulsar: () => setState(() => _filtroTemporal = 2),
-                  ),
+                  for (final (i, texto) in const [
+                    (0, 'Día'),
+                    (1, 'Semana'),
+                    (2, 'Mes'),
+                  ])
+                    _BotonPestanaTemporal(
+                      texto: texto,
+                      activo: _filtroTemporal == i,
+                      alPulsar: () => setState(() {
+                        _filtroTemporal = i;
+                        _referencia = DateTime.now();
+                      }),
+                    ),
                 ],
               ),
             ),
 
             const SizedBox(height: 12),
 
-            // Selector de rango de fechas con flechas
+            // Selector de periodo con flechas
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 IconButton(
-                  icon: const Icon(Icons.chevron_left_rounded, size: 22, color: AppColors.azulMarino),
-                  onPressed: () {},
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.blanco,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.bordes),
+                  tooltip: 'Periodo anterior',
+                  icon: const Icon(
+                    Icons.chevron_left_rounded,
+                    size: 22,
+                    color: AppColors.azulMarino,
                   ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.calendar_today_outlined, size: 13, color: AppColors.azulPrimario),
-                      SizedBox(width: 6),
-                      Text(
-                        '10 - 16 nov 2026',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textoPrincipal,
+                  onPressed: () =>
+                      setState(() => _referencia = _desplazar(inicio, -1)),
+                ),
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.blanco,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.bordes),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.calendar_today_outlined,
+                          size: 13,
+                          color: AppColors.azulPrimario,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            _etiquetaPeriodo(inicio),
+                            key: const Key('etiqueta_periodo'),
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textoPrincipal,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.chevron_right_rounded, size: 22, color: AppColors.azulMarino),
-                  onPressed: () {},
+                  tooltip: 'Periodo siguiente',
+                  icon: Icon(
+                    Icons.chevron_right_rounded,
+                    size: 22,
+                    color: puedeAvanzar
+                        ? AppColors.azulMarino
+                        : AppColors.bordes,
+                  ),
+                  onPressed: puedeAvanzar
+                      ? () =>
+                            setState(() => _referencia = _desplazar(inicio, 1))
+                      : null,
                 ),
               ],
             ),
 
             const SizedBox(height: 14),
 
-            // 3 Tarjetas resumen superiores (Total semana, Promedio día, Eficiencia)
             Row(
               children: [
                 Expanded(
                   child: _MiniCardKpi(
-                    titulo: 'Total semana',
-                    valor: '76.045',
+                    titulo: nombreTotal,
+                    valor: _f0.format(total),
                     unidad: 'm³',
-                    variacion: '+2,4 %',
-                    positiva: true,
+                    variacion: _variacion(total, totalAnterior),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: _MiniCardKpi(
-                    titulo: 'Promedio día',
-                    valor: '10.864',
+                    titulo: 'Promedio por $unidad',
+                    valor: _f0.format(promedio),
                     unidad: 'm³',
-                    variacion: '-0,8 %',
-                    positiva: false,
+                    variacion: _variacion(promedio, promedioAnterior),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: _MiniCardKpi(
                     titulo: 'Eficiencia',
-                    valor: '95,4',
+                    valor: _f1.format(eficiencia),
                     unidad: '%',
-                    variacion: '+0,3 %',
-                    positiva: true,
+                    variacion: eficienciaAnterior == 0
+                        ? null
+                        : eficiencia - eficienciaAnterior,
+                    esPuntos: true,
                   ),
                 ),
               ],
@@ -163,13 +369,11 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
 
             const SizedBox(height: 16),
 
-            // Tarjeta: Tratamiento diario (Gráfica de Barras con Meta Punteada)
-            _construirGraficaBarrasTratamiento(),
+            _construirGraficaBarrasTratamiento(barras, conDatos),
 
             const SizedBox(height: 16),
 
-            // Tarjeta: Evolución del volumen tratado (Área)
-            _construirGraficaAreaEvolucion(),
+            _construirGraficaAreaEvolucion(_evolucion(inicio, ahora)),
 
             const SizedBox(height: 24),
           ],
@@ -178,7 +382,36 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
     );
   }
 
-  Widget _construirGraficaBarrasTratamiento() {
+  Widget _construirGraficaBarrasTratamiento(
+    List<_Barra> barras,
+    List<_Barra> conDatos,
+  ) {
+    final meta = _meta;
+    final indiceMax = conDatos.isEmpty
+        ? -1
+        : barras.indexOf(
+            conDatos.reduce((a, b) => a.valor! >= b.valor! ? a : b),
+          );
+    final superanMeta = conDatos.where((b) => b.valor! >= meta).length;
+    final maxY =
+        [meta, ...conDatos.map((b) => b.valor!)].reduce(math.max) * 1.15;
+    final anchoBarra = barras.length > 20
+        ? 6.0
+        : (barras.length > 10 ? 9.0 : 16.0);
+    final unidad = _filtroTemporal == 0 ? 'horas' : 'días';
+
+    final String nota;
+    if (conDatos.isEmpty) {
+      nota = 'Todavía no hay datos para este periodo.';
+    } else {
+      final mayor = barras[indiceMax];
+      final cuando = _filtroTemporal == 0
+          ? 'La hora de mayor volumen fue las ${mayor.etiquetaLarga}'
+          : 'El ${mayor.etiquetaLarga.toLowerCase()} se alcanzó el mayor volumen';
+      nota =
+          '$cuando (${_f0.format(mayor.valor)} m³). $superanMeta de ${conDatos.length} $unidad superaron la meta.';
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -193,25 +426,26 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Tratamiento diario',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textoPrincipal,
+              Flexible(
+                child: Text(
+                  _filtroTemporal == 0
+                      ? 'Tratamiento por hora'
+                      : 'Tratamiento diario',
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textoPrincipal,
+                  ),
                 ),
               ),
               Row(
                 children: [
-                  Container(
-                    width: 12,
-                    height: 2,
-                    color: AppColors.turquesa,
-                  ),
+                  Container(width: 12, height: 2, color: AppColors.turquesa),
                   const SizedBox(width: 4),
-                  const Text(
-                    'Meta 11.000',
-                    style: TextStyle(
+                  Text(
+                    'Meta ${_f0.format(meta)}',
+                    style: const TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
                       color: AppColors.turquesa,
@@ -222,61 +456,94 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
             ],
           ),
           const SizedBox(height: 4),
-          const Text(
-            'Volumen tratado por día · m³',
-            style: TextStyle(fontSize: 11, color: AppColors.textoSecundario),
+          Text(
+            _filtroTemporal == 0
+                ? 'Volumen tratado por hora · m³'
+                : 'Volumen tratado por día · m³',
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.textoSecundario,
+            ),
           ),
           const SizedBox(height: 16),
 
-          // Gráfica de Barras
           SizedBox(
             height: 170,
             child: BarChart(
               BarChartData(
                 alignment: BarChartAlignment.spaceAround,
-                maxY: 13000,
+                maxY: maxY,
+                minY: 0,
                 barTouchData: BarTouchData(
                   touchTooltipData: BarTouchTooltipData(
                     getTooltipColor: (_) => AppColors.azulMarino,
-                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                      final dias = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-                      return BarTooltipItem(
-                        '${dias[group.x.toInt()]}\n${rod.toY.toInt()} m³',
-                        const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                      );
-                    },
+                    getTooltipItem: (group, groupIndex, rod, rodIndex) =>
+                        BarTooltipItem(
+                          '${barras[group.x].etiquetaLarga}\n${_f0.format(rod.toY)} m³',
+                          const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                   ),
+                ),
+                extraLinesData: ExtraLinesData(
+                  horizontalLines: [
+                    HorizontalLine(
+                      y: meta,
+                      color: AppColors.turquesa,
+                      strokeWidth: 1.5,
+                      dashArray: [4, 4],
+                    ),
+                  ],
                 ),
                 titlesData: FlTitlesData(
                   show: true,
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
-                      reservedSize: 28,
+                      reservedSize: 32,
                       getTitlesWidget: (value, meta) {
-                        if (value == 0) return const Text('0', style: TextStyle(fontSize: 9, color: AppColors.textoSecundario));
-                        if (value == 5000) return const Text('5k', style: TextStyle(fontSize: 9, color: AppColors.textoSecundario));
-                        if (value == 10000) return const Text('10k', style: TextStyle(fontSize: 9, color: AppColors.textoSecundario));
-                        return const SizedBox.shrink();
+                        if (value == meta.max) return const SizedBox.shrink();
+                        final texto = value >= 1000
+                            ? '${_f0.format(value / 1000)}k'
+                            : _f0.format(value);
+                        return Text(
+                          texto,
+                          style: const TextStyle(
+                            fontSize: 9,
+                            color: AppColors.textoSecundario,
+                          ),
+                        );
                       },
                     ),
                   ),
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
+                      reservedSize: 22,
                       getTitlesWidget: (value, meta) {
-                        const dias = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-                        final esJueves = value.toInt() == 3;
+                        final i = value.toInt();
+                        final destacado = i == indiceMax;
                         return Padding(
                           padding: const EdgeInsets.only(top: 6),
                           child: Text(
-                            dias[value.toInt()],
+                            barras[i].etiqueta,
                             style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: esJueves ? FontWeight.w700 : FontWeight.w500,
-                              color: esJueves ? AppColors.azulMarino : AppColors.textoSecundario,
+                              fontSize: barras.length > 10 ? 9 : 11,
+                              fontWeight: destacado
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: destacado
+                                  ? AppColors.azulMarino
+                                  : AppColors.textoSecundario,
                             ),
                           ),
                         );
@@ -287,47 +554,51 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,
-                  getDrawingHorizontalLine: (val) {
-                    if (val == 11000) {
-                      return FlLine(
-                        color: AppColors.turquesa,
-                        strokeWidth: 1.5,
-                        dashArray: [4, 4],
-                      );
-                    }
-                    return FlLine(color: AppColors.bordes, strokeWidth: 0.8);
-                  },
+                  getDrawingHorizontalLine: (val) =>
+                      const FlLine(color: AppColors.bordes, strokeWidth: 0.8),
                 ),
                 borderData: FlBorderData(show: false),
                 barGroups: [
-                  _crearGrupoBarra(0, 10200),
-                  _crearGrupoBarra(1, 10800),
-                  _crearGrupoBarra(2, 11100),
-                  _crearGrupoBarra(3, 11320, esDestacado: true), // Jueves más alto
-                  _crearGrupoBarra(4, 11050),
-                  _crearGrupoBarra(5, 10700),
-                  _crearGrupoBarra(6, 10875),
+                  for (var i = 0; i < barras.length; i++)
+                    BarChartGroupData(
+                      x: i,
+                      barRods: [
+                        BarChartRodData(
+                          toY: barras[i].valor ?? 0,
+                          color: i == indiceMax
+                              ? AppColors.azulMarino
+                              : AppColors.azulPrimario,
+                          width: anchoBarra,
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(anchoBarra > 8 ? 5 : 2),
+                          ),
+                        ),
+                      ],
+                    ),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 12),
 
-          // Nota informativa de Figma
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
               color: AppColors.informacionFondo,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.info_outline_rounded, size: 15, color: AppColors.informacion),
-                SizedBox(width: 8),
+                const Icon(
+                  Icons.info_outline_rounded,
+                  size: 15,
+                  color: AppColors.informacion,
+                ),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'El jueves se alcanzó el mayor volumen tratado: 4 de 7 días superaron la meta.',
-                    style: TextStyle(
+                    nota,
+                    style: const TextStyle(
                       fontSize: 11,
                       color: AppColors.informacion,
                       height: 1.3,
@@ -342,21 +613,29 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
     );
   }
 
-  BarChartGroupData _crearGrupoBarra(int x, double y, {bool esDestacado = false}) {
-    return BarChartGroupData(
-      x: x,
-      barRods: [
-        BarChartRodData(
-          toY: y,
-          color: esDestacado ? AppColors.azulMarino : AppColors.azulPrimario,
-          width: 16,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(5)),
-        ),
-      ],
-    );
-  }
+  Widget _construirGraficaAreaEvolucion(List<_PuntoEvolucion> puntos) {
+    final esDia = _filtroTemporal == 0;
+    final titulo = esDia
+        ? 'Caudal de entrada durante el día'
+        : 'Evolución del volumen tratado';
+    final subtitulo = switch (_filtroTemporal) {
+      0 => 'Hora a hora · L/s',
+      1 => 'Últimas 8 semanas · promedio m³/día',
+      _ => 'Últimos 6 meses · promedio m³/día',
+    };
+    final unidad = esDia ? 'L/s' : 'm³';
+    String fmt(double v) => esDia ? _f1.format(v) : _f0.format(v);
 
-  Widget _construirGraficaAreaEvolucion() {
+    if (puntos.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final valores = puntos.map((p) => p.valor).toList();
+    final minimo = valores.reduce(math.min);
+    final maximo = valores.reduce(math.max);
+    final promedio = valores.reduce((a, b) => a + b) / valores.length;
+    final margen = math.max((maximo - minimo) * 0.25, maximo * 0.02);
+    final paso = puntos.length > 8 ? (puntos.length / 4).ceil() : 1;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -368,78 +647,108 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Evolución del volumen tratado',
-            style: TextStyle(
+          Text(
+            titulo,
+            style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
               color: AppColors.textoPrincipal,
             ),
           ),
           const SizedBox(height: 2),
-          const Text(
-            'Últimos 30 días · m³/día',
-            style: TextStyle(fontSize: 11, color: AppColors.textoSecundario),
+          Text(
+            subtitulo,
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.textoSecundario,
+            ),
           ),
           const SizedBox(height: 12),
-
-          // Resumen min / avg / acumulado
-          const Row(
+          Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _ItemEvolucion(label: 'Mínimo', valor: '10.015 m³'),
-              _ItemEvolucion(label: 'Promedio', valor: '10.864 m³'),
-              _ItemEvolucion(label: 'Acumulado', valor: '317.389 m³'),
+              _ItemEvolucion(label: 'Mínimo', valor: '${fmt(minimo)} $unidad'),
+              _ItemEvolucion(
+                label: 'Promedio',
+                valor: '${fmt(promedio)} $unidad',
+              ),
+              _ItemEvolucion(label: 'Máximo', valor: '${fmt(maximo)} $unidad'),
             ],
           ),
           const SizedBox(height: 16),
-
-          // Gráfica de área ondulada suave
           SizedBox(
             height: 130,
             child: LineChart(
               LineChartData(
                 gridData: const FlGridData(show: false),
+                lineTouchData: LineTouchData(
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipColor: (_) => AppColors.azulMarino,
+                    getTooltipItems: (spots) => [
+                      for (final s in spots)
+                        LineTooltipItem(
+                          '${puntos[s.x.toInt()].etiqueta}\n${fmt(s.y)} $unidad',
+                          const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
                 titlesData: FlTitlesData(
-                  leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  leftTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
                       reservedSize: 20,
+                      interval: 1,
                       getTitlesWidget: (value, meta) {
-                        if (value == 0) return const Text('18 oct', style: TextStyle(fontSize: 9, color: AppColors.textoSecundario));
-                        if (value == 5) return const Text('28 oct', style: TextStyle(fontSize: 9, color: AppColors.textoSecundario));
-                        if (value == 10) return const Text('07 nov', style: TextStyle(fontSize: 9, color: AppColors.textoSecundario));
-                        if (value == 14) return const Text('16 nov', style: TextStyle(fontSize: 9, color: AppColors.textoSecundario));
-                        return const SizedBox.shrink();
+                        final i = value.toInt();
+                        if (i % paso != 0 && i != puntos.length - 1) {
+                          return const SizedBox.shrink();
+                        }
+                        if (i != puntos.length - 1 &&
+                            puntos.length - 1 - i < paso / 2) {
+                          return const SizedBox.shrink();
+                        }
+                        return Text(
+                          puntos[i].etiqueta,
+                          style: const TextStyle(
+                            fontSize: 9,
+                            color: AppColors.textoSecundario,
+                          ),
+                        );
                       },
                     ),
                   ),
                 ),
                 borderData: FlBorderData(show: false),
                 minX: 0,
-                maxX: 14,
-                minY: 8000,
-                maxY: 13000,
+                maxX: math.max(1, puntos.length - 1).toDouble(),
+                minY: minimo - margen,
+                maxY: maximo + margen,
                 lineBarsData: [
                   LineChartBarData(
-                    spots: const [
-                      FlSpot(0, 9500),
-                      FlSpot(2, 10200),
-                      FlSpot(4, 9900),
-                      FlSpot(6, 11400),
-                      FlSpot(8, 10600),
-                      FlSpot(10, 11800),
-                      FlSpot(12, 11100),
-                      FlSpot(14, 11320),
+                    spots: [
+                      for (var i = 0; i < puntos.length; i++)
+                        FlSpot(i.toDouble(), puntos[i].valor),
                     ],
                     isCurved: true,
-                    curveSmoothness: 0.35,
+                    curveSmoothness: 0.3,
+                    preventCurveOverShooting: true,
                     color: AppColors.azulPrimario,
                     barWidth: 2,
-                    dotData: const FlDotData(show: false),
+                    dotData: FlDotData(show: puntos.length <= 8),
                     belowBarData: BarAreaData(
                       show: true,
                       gradient: LinearGradient(
@@ -502,15 +811,17 @@ class _MiniCardKpi extends StatelessWidget {
   final String titulo;
   final String valor;
   final String unidad;
-  final String variacion;
-  final bool positiva;
+
+  /// Variación frente al periodo anterior (% o puntos porcentuales); null si no hay con qué comparar.
+  final double? variacion;
+  final bool esPuntos;
 
   const _MiniCardKpi({
     required this.titulo,
     required this.valor,
     required this.unidad,
     required this.variacion,
-    required this.positiva,
+    this.esPuntos = false,
   });
 
   @override
@@ -527,37 +838,53 @@ class _MiniCardKpi extends StatelessWidget {
         children: [
           Text(
             titulo,
-            style: const TextStyle(fontSize: 11, color: AppColors.textoSecundario),
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.textoSecundario,
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 4),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                valor,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textoPrincipal,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  valor,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textoPrincipal,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 2),
-              Text(
-                unidad,
-                style: const TextStyle(fontSize: 10, color: AppColors.textoSecundario),
-              ),
-            ],
+                const SizedBox(width: 2),
+                Text(
+                  unidad,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: AppColors.textoSecundario,
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 4),
           Text(
-            variacion,
+            variacion == null
+                ? 'Sin comparación'
+                : '${variacion! >= 0 ? '+' : ''}${NumberFormat('#,##0.0', 'es_CO').format(variacion)}${esPuntos ? ' pts' : ' %'}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w700,
-              color: positiva ? AppColors.exito : AppColors.critico,
+              color: variacion == null
+                  ? AppColors.textoSecundario
+                  : (variacion! >= 0 ? AppColors.exito : AppColors.critico),
             ),
           ),
         ],
@@ -579,7 +906,10 @@ class _ItemEvolucion extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 10, color: AppColors.textoSecundario),
+          style: const TextStyle(
+            fontSize: 10,
+            color: AppColors.textoSecundario,
+          ),
         ),
         Text(
           valor,
