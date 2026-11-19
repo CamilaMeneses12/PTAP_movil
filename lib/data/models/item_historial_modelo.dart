@@ -14,6 +14,8 @@ class ItemHistorial {
   final String titulo;
   final String subtitulo;
   final String responsable;
+  /// UUID del usuario que creó el registro (created_by), si se conoce
+  final String? creadoPorId;
   final bool tieneAlerta;
   final String? mensajeAlerta;
   final dynamic objetoOriginal;
@@ -26,6 +28,7 @@ class ItemHistorial {
     required this.titulo,
     required this.subtitulo,
     required this.responsable,
+    this.creadoPorId,
     this.tieneAlerta = false,
     this.mensajeAlerta,
     required this.objetoOriginal,

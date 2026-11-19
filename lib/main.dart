@@ -12,6 +12,8 @@ import 'presentation/flow/providers/caudal_provider.dart';
 import 'presentation/history/providers/historial_provider.dart';
 import 'presentation/meters/providers/medidores_provider.dart';
 import 'presentation/physicochemical/providers/fisicoquimico_provider.dart';
+import 'presentation/settings/providers/preferencias_provider.dart';
+import 'presentation/settings/providers/umbrales_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,6 +42,8 @@ class _PlantaAguaAppState extends State<PlantaAguaApp> {
   late final HistorialProvider _historialProvider;
   late final AdminProvider _adminProvider;
   late final AlertasProvider _alertasProvider;
+  late final UmbralesProvider _umbralesProvider;
+  late final PreferenciasProvider _preferenciasProvider;
 
   @override
   void initState() {
@@ -51,6 +55,9 @@ class _PlantaAguaAppState extends State<PlantaAguaApp> {
     _historialProvider = HistorialProvider();
     _adminProvider = AdminProvider();
     _alertasProvider = AlertasProvider();
+    // Carga los umbrales vigentes (Supabase o valores normativos) y los aplica al validador
+    _umbralesProvider = UmbralesProvider()..cargar();
+    _preferenciasProvider = PreferenciasProvider();
   }
 
   @override
@@ -64,6 +71,8 @@ class _PlantaAguaAppState extends State<PlantaAguaApp> {
         ChangeNotifierProvider.value(value: _historialProvider),
         ChangeNotifierProvider.value(value: _adminProvider),
         ChangeNotifierProvider.value(value: _alertasProvider),
+        ChangeNotifierProvider.value(value: _umbralesProvider),
+        ChangeNotifierProvider.value(value: _preferenciasProvider),
       ],
       child: Builder(
         builder: (context) {

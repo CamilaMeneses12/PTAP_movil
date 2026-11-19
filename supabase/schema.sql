@@ -66,7 +66,7 @@ create table if not exists public.puntos_muestreo (
 -- 6. TABLA: RANGOS Y LÍMITES NORMATIVOS (Resolución 2115 de 2007)
 create table if not exists public.rangos_parametros (
     id bigserial primary key,
-    seccion text not null check (seccion in ('agua_cruda', 'agua_filtrada', 'agua_clorada', 'puntos_control')),
+    seccion text not null check (seccion in ('agua_cruda', 'agua_filtrada', 'agua_clorada', 'puntos_control', 'operacion')),
     parametro text not null,
     nombre_visible text not null,
     unidad text not null,
@@ -419,3 +419,20 @@ on conflict (seccion, parametro) do update set
     valor_minimo = excluded.valor_minimo,
     valor_maximo = excluded.valor_maximo,
     updated_at = now();
+
+-- ==============================================================================
+-- 15. UMBRALES OPERATIVOS EDITABLES DESDE EL PERFIL DEL ADMINISTRADOR
+-- Reutiliza rangos_parametros con la sección 'operacion' (caudal, presión, nivel).
+-- Ejecutar este bloque en bases de datos ya creadas con la versión anterior.
+-- ==============================================================================
+
+alter table public.rangos_parametros drop constraint if exists rangos_parametros_seccion_check;
+alter table public.rangos_parametros add constraint rangos_parametros_seccion_check
+    check (seccion in ('agua_cruda', 'agua_filtrada', 'agua_clorada', 'puntos_control', 'operacion'));
+
+insert into public.rangos_parametros (seccion, parametro, nombre_visible, unidad, valor_minimo, valor_maximo, norma_referencia) values
+    ('operacion', 'caudal_entrada', 'Caudal de entrada', 'L/s', 110.0, 140.0, 'Control operativo PTAP'),
+    ('operacion', 'caudal_salida', 'Caudal de salida', 'L/s', 105.0, 135.0, 'Control operativo PTAP'),
+    ('operacion', 'presion_red', 'Presión de red', 'bar', 2.8, 4.0, 'Control operativo PTAP'),
+    ('operacion', 'nivel_tanque', 'Nivel mínimo de tanque', '%', 40.0, null, 'Control operativo PTAP')
+on conflict (seccion, parametro) do nothing;

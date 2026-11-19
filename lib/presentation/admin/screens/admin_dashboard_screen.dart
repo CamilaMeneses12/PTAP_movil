@@ -7,12 +7,16 @@ import '../providers/admin_provider.dart';
 
 /// Panel principal de Administración: Usuarios, Catálogo de Medidores y Rangos Normativos
 class AdminDashboardScreen extends StatelessWidget {
-  const AdminDashboardScreen({super.key});
+  /// 0 = Usuarios, 1 = Medidores, 2 = Rangos
+  final int pestanaInicial;
+
+  const AdminDashboardScreen({super.key, this.pestanaInicial = 0});
 
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 3,
+      initialIndex: pestanaInicial.clamp(0, 2),
       child: Scaffold(
         backgroundColor: AppColors.fondoGeneral,
         appBar: AppBar(

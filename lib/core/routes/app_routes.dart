@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../data/models/aforo_caudal_modelo.dart';
 import '../../data/models/medidores_modelos.dart';
 import '../../data/models/registro_fisicoquimico.dart';
+import '../../data/models/usuario_perfil.dart';
 import '../../presentation/admin/screens/admin_dashboard_screen.dart';
 import '../../presentation/alerts/screens/alertas_screen.dart';
 import '../../presentation/auth/providers/auth_provider.dart';
@@ -69,6 +70,18 @@ class AppRoutes {
   static const String configuracion = '/configuracion';
   static const String ayuda = '/ayuda';
 
+  /// Rutas para crear registros: solo operario y administrador.
+  static const Set<String> rutasEdicion = {fisicoquimicoNuevo, medidoresNuevo, caudalNuevo};
+
+  /// Indica si el rol del usuario puede abrir la ruta. Se aplica en el redirect del router,
+  /// así una ruta prohibida no se abre aunque se llegue a ella por un enlace o botón.
+  static bool rutaPermitida(UsuarioPerfil? perfil, String ubicacion) {
+    if (perfil == null) return true;
+    if (ubicacion == admin || ubicacion.startsWith('$admin/')) return perfil.puedeAdministrar;
+    if (rutasEdicion.contains(ubicacion)) return perfil.puedeEditar;
+    return true;
+  }
+
   static GoRouter crearRouter(SesionUsuarioProvider authProvider) {
     return GoRouter(
       initialLocation: login,
@@ -91,6 +104,10 @@ class AppRoutes {
         }
 
         if (state.matchedLocation == '/dashboard') {
+          return inicio;
+        }
+
+        if (estaAutenticado && !rutaPermitida(authProvider.perfil, state.uri.path)) {
           return inicio;
         }
 
@@ -251,7 +268,9 @@ class AppRoutes {
         GoRoute(
           path: admin,
           name: 'admin',
-          builder: (context, state) => const AdminDashboardScreen(),
+          builder: (context, state) => AdminDashboardScreen(
+            pestanaInicial: state.extra is int ? state.extra as int : 0,
+          ),
         ),
         GoRoute(
           path: configuracion,
