@@ -167,11 +167,11 @@ class _FormularioFisicoquimicoScreenState
     final evaluaciones = _obtenerEvaluacionesFueraDeRango();
     final hayAlertas = evaluaciones.isNotEmpty;
 
-    // Validación c: Valores fuera de norma pero posibles -> Diálogo modal obligatorio
+    // Validación: Valores fuera de rango -> Aviso informativo no bloqueante
     if (hayAlertas) {
-      final confirmar = await showDialog<bool>(
+      await showDialog<void>(
         context: context,
-        barrierDismissible: false,
+        barrierDismissible: true,
         builder: (ctx) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
@@ -187,7 +187,7 @@ class _FormularioFisicoquimicoScreenState
               const SizedBox(width: 10),
               const Expanded(
                 child: Text(
-                  'Valores fuera de rango',
+                  'Aviso: Parámetros fuera de rango',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textoPrincipal),
                 ),
               ),
@@ -199,7 +199,7 @@ class _FormularioFisicoquimicoScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Los siguientes parámetros exceden los límites normativos permitidos (Res. 2115 / DO-F-070):',
+                  'El registro se guardará con los siguientes parámetros anómalos y generará una alerta en el sistema:',
                   style: TextStyle(fontSize: 12, color: AppColors.textoSecundario),
                 ),
                 const SizedBox(height: 10),
@@ -241,43 +241,28 @@ class _FormularioFisicoquimicoScreenState
                     ),
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 6),
                 const Text(
-                  '¿Confirma que estos valores son reales y verificados en laboratorio/campo? Es OBLIGATORIO ingresar una nota de observación.',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textoPrincipal),
+                  'La observación explicativa es opcional pero recomendada.',
+                  style: TextStyle(fontSize: 11, color: AppColors.textoSecundario, fontStyle: FontStyle.italic),
                 ),
               ],
             ),
           ),
           actions: [
-            OutlinedButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Corregir'),
-            ),
             ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.advertencia),
-              child: const Text('Guardar de todos modos'),
+              onPressed: () => Navigator.pop(ctx),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.azulPrimario,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Entendido', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
       );
 
-      if (confirmar != true) return;
       if (!mounted) return;
-
-      if (_observacionesController.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              '¡Atención! Debe ingresar obligatoriamente una observación justificando la anomalía antes de guardar.',
-            ),
-            backgroundColor: AppColors.critico,
-            duration: Duration(seconds: 4),
-          ),
-        );
-        return;
-      }
 
       // Generar alertas en AlertasProvider
       final alertasProv = context.read<AlertasProvider>();

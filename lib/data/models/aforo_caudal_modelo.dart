@@ -28,6 +28,7 @@ class AforoCaudal {
   final double caudalM3H;
   final double caudalLS;
   final double caudalLH;
+  final bool fueraDeRango;
 
   final String? observaciones;
   final String createdBy;
@@ -57,6 +58,7 @@ class AforoCaudal {
     required this.caudalM3H,
     required this.caudalLS,
     required this.caudalLH,
+    this.fueraDeRango = false,
     this.observaciones,
     required this.createdBy,
     required this.createdAt,
@@ -87,6 +89,7 @@ class AforoCaudal {
       'caudal_m3_h': caudalM3H,
       'caudal_l_s': caudalLS,
       'caudal_l_h': caudalLH,
+      'fuera_de_rango': fueraDeRango,
       'observaciones': observaciones,
       'created_by': createdBy,
     };
@@ -123,6 +126,7 @@ class AforoCaudal {
       caudalM3H: (map['caudal_m3_h'] as num?)?.toDouble() ?? 0.0,
       caudalLS: (map['caudal_l_s'] as num?)?.toDouble() ?? 0.0,
       caudalLH: (map['caudal_l_h'] as num?)?.toDouble() ?? 0.0,
+      fueraDeRango: map['fuera_de_rango'] as bool? ?? false,
       observaciones: map['observaciones'] as String?,
       createdBy: map['created_by']?.toString() ?? '',
       createdAt: map['created_at'] != null ? parseFecha(map['created_at']) : DateTime.now(),

@@ -6,6 +6,8 @@ class Medidor {
   final String tipo; // 'micromedidor' o 'macromedidor'
   final int orden;
   final bool activo;
+  final int digitosEnteros; // rodillos negros (m³ enteros), defecto 5
+  final int digitosDecimales; // rodillos o agujas rojas (decimales), defecto 3
 
   const Medidor({
     required this.id,
@@ -14,6 +16,8 @@ class Medidor {
     required this.tipo,
     required this.orden,
     this.activo = true,
+    this.digitosEnteros = 5,
+    this.digitosDecimales = 3,
   });
 
   bool get esMacro => tipo == 'macromedidor';
@@ -27,6 +31,8 @@ class Medidor {
       tipo: map['tipo'] as String? ?? 'micromedidor',
       orden: int.tryParse(map['orden']?.toString() ?? '0') ?? 0,
       activo: map['activo'] as bool? ?? true,
+      digitosEnteros: int.tryParse(map['digitos_enteros']?.toString() ?? '5') ?? 5,
+      digitosDecimales: int.tryParse(map['digitos_decimales']?.toString() ?? '3') ?? 3,
     );
   }
 
@@ -38,6 +44,8 @@ class Medidor {
       'tipo': tipo,
       'orden': orden,
       'activo': activo,
+      'digitos_enteros': digitosEnteros,
+      'digitos_decimales': digitosDecimales,
     };
   }
 
@@ -48,6 +56,8 @@ class Medidor {
     String? tipo,
     int? orden,
     bool? activo,
+    int? digitosEnteros,
+    int? digitosDecimales,
   }) {
     return Medidor(
       id: id ?? this.id,
@@ -56,6 +66,8 @@ class Medidor {
       tipo: tipo ?? this.tipo,
       orden: orden ?? this.orden,
       activo: activo ?? this.activo,
+      digitosEnteros: digitosEnteros ?? this.digitosEnteros,
+      digitosDecimales: digitosDecimales ?? this.digitosDecimales,
     );
   }
 }
@@ -70,6 +82,9 @@ class LecturaMedidor {
   final double lecturaActual;   // en m³
   final double lecturaAnterior; // en m³
   final double consumo;         // en m³ (lecturaActual - lecturaAnterior)
+  final String? fotoUrl;
+  final String metodoLectura;   // 'manual' | 'camara_ocr' | 'ocr_editado'
+  final bool fueraDeRango;
 
   const LecturaMedidor({
     this.id,
@@ -80,6 +95,9 @@ class LecturaMedidor {
     required this.lecturaActual,
     required this.lecturaAnterior,
     required this.consumo,
+    this.fotoUrl,
+    this.metodoLectura = 'manual',
+    this.fueraDeRango = false,
   });
 
   Map<String, dynamic> toMap({String? fkJornadaId}) {
@@ -90,6 +108,9 @@ class LecturaMedidor {
       'lectura_actual': lecturaActual,
       'lectura_anterior': lecturaAnterior,
       'consumo': consumo,
+      'foto_url': fotoUrl,
+      'metodo_lectura': metodoLectura,
+      'fuera_de_rango': fueraDeRango,
     };
   }
 
@@ -103,6 +124,9 @@ class LecturaMedidor {
       lecturaActual: (map['lectura_actual'] as num?)?.toDouble() ?? 0.0,
       lecturaAnterior: (map['lectura_anterior'] as num?)?.toDouble() ?? 0.0,
       consumo: (map['consumo'] as num?)?.toDouble() ?? 0.0,
+      fotoUrl: map['foto_url'] as String?,
+      metodoLectura: map['metodo_lectura'] as String? ?? 'manual',
+      fueraDeRango: map['fuera_de_rango'] as bool? ?? false,
     );
   }
 
@@ -115,6 +139,9 @@ class LecturaMedidor {
     double? lecturaActual,
     double? lecturaAnterior,
     double? consumo,
+    String? fotoUrl,
+    String? metodoLectura,
+    bool? fueraDeRango,
   }) {
     return LecturaMedidor(
       id: id ?? this.id,
@@ -125,6 +152,9 @@ class LecturaMedidor {
       lecturaActual: lecturaActual ?? this.lecturaActual,
       lecturaAnterior: lecturaAnterior ?? this.lecturaAnterior,
       consumo: consumo ?? this.consumo,
+      fotoUrl: fotoUrl ?? this.fotoUrl,
+      metodoLectura: metodoLectura ?? this.metodoLectura,
+      fueraDeRango: fueraDeRango ?? this.fueraDeRango,
     );
   }
 }
@@ -141,6 +171,7 @@ class JornadaMedidores {
   final double consumoTotalMicros;  // Suma de consumos de los 8 micromedidores (m³)
   final double consumoMacromedidor; // Consumo del macromedidor (m³)
   final double aguaNoRegistrada;    // Consumo Macro - Consumo Total Micros (m³)
+  final bool fueraDeRango;
 
   final List<LecturaMedidor> lecturas;
   final String createdBy;
@@ -155,6 +186,7 @@ class JornadaMedidores {
     required this.consumoTotalMicros,
     required this.consumoMacromedidor,
     required this.aguaNoRegistrada,
+    this.fueraDeRango = false,
     this.lecturas = const [],
     required this.createdBy,
     required this.createdAt,
@@ -170,6 +202,7 @@ class JornadaMedidores {
       'consumo_total_micros': consumoTotalMicros,
       'consumo_macromedidor': consumoMacromedidor,
       'agua_no_registrada': aguaNoRegistrada,
+      'fuera_de_rango': fueraDeRango,
       'created_by': createdBy,
     };
   }
@@ -193,9 +226,15 @@ class JornadaMedidores {
       consumoTotalMicros: (map['consumo_total_micros'] as num?)?.toDouble() ?? 0.0,
       consumoMacromedidor: (map['consumo_macromedidor'] as num?)?.toDouble() ?? 0.0,
       aguaNoRegistrada: (map['agua_no_registrada'] as num?)?.toDouble() ?? 0.0,
+      fueraDeRango: map['fuera_de_rango'] as bool? ?? false,
       lecturas: lecturas,
       createdBy: map['created_by']?.toString() ?? '',
       createdAt: map['created_at'] != null ? parseFecha(map['created_at']) : DateTime.now(),
     );
+  }
+
+  double get porcentajePerdida {
+    if (consumoMacromedidor == 0) return 0.0;
+    return (aguaNoRegistrada / consumoMacromedidor) * 100;
   }
 }

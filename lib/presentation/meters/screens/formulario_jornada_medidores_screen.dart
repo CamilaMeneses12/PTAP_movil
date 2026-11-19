@@ -9,6 +9,7 @@ import '../../../domain/calculations/calculos_medidores.dart';
 import '../../../domain/validators/validador_rangos.dart';
 import '../../alerts/providers/alertas_provider.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../common/widgets/mensaje_fuera_de_rango.dart';
 import '../providers/medidores_provider.dart';
 
 class FormularioJornadaMedidoresScreen extends StatefulWidget {
@@ -99,7 +100,14 @@ class _FormularioJornadaMedidoresScreenState
 
     final medidores = context.read<MedidoresProvider>().catalogoMedidores;
 
-    // Validación crítica b: Lectura final >= lectura inicial
+    final balance = _calcularBalanceVivo();
+    final authProvider = context.read<SesionUsuarioProvider>();
+    final alertasProv = context.read<AlertasProvider>();
+
+    // Recopilar avisos informativos (sin bloquear)
+    final avisos = <String>[];
+    bool fueraDeRango = false;
+
     for (final m in medidores) {
       final act = _parse(_actualControllers[m.id]!);
       final ant = _parse(_anteriorControllers[m.id]!);
@@ -109,98 +117,102 @@ class _FormularioJornadaMedidoresScreenState
         nombreMedidor: m.nombre,
       );
       if (!val.cumple) {
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: const Row(
-              children: [
-                Icon(Icons.error_outline_rounded, color: AppColors.critico),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text('Error Crítico en Lectura', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                ),
-              ],
-            ),
-            content: Text(val.mensajeCompleto, style: const TextStyle(fontSize: 13)),
-            actions: [
-              ElevatedButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Corregir'),
-              ),
-            ],
-          ),
+        fueraDeRango = true;
+        avisos.add(val.mensajeCompleto);
+        alertasProv.agregarAlerta(
+          titulo: 'Lectura de medidor anómala',
+          descripcion: val.mensajeCompleto,
+          severidad: SeveridadAlerta.advertencia,
+          parametro: m.nombre,
+          valorRegistrado: act,
         );
-        return;
       }
     }
 
-    final balance = _calcularBalanceVivo();
-    final authProvider = context.read<SesionUsuarioProvider>();
-
-    // Validación c: Pérdida elevada de agua
     final perdidaAlta = balance.aguaNoRegistrada.abs() > 5.0;
     if (perdidaAlta) {
-      final confirmar = await showDialog<bool>(
+      fueraDeRango = true;
+      avisos.add(
+        'El balance hídrico calculó un Agua No Registrada (ANR) de ${balance.aguaNoRegistrada.toStringAsFixed(2)} m³ (${balance.porcentajePerdida.toStringAsFixed(1)}%), superando el umbral normal de 5,0 m³.',
+      );
+      alertasProv.agregarAlerta(
+        titulo: 'Pérdida hídrica anormal detectada',
+        descripcion:
+            'Balance hídrico con ANR de ${balance.aguaNoRegistrada.toStringAsFixed(2)} m³ (${balance.porcentajePerdida.toStringAsFixed(1)}%).',
+        severidad: SeveridadAlerta.advertencia,
+        parametro: 'Balance ANR',
+        valorRegistrado: balance.aguaNoRegistrada,
+      );
+    }
+
+    // Diálogo informativo no bloqueante si hay avisos
+    if (avisos.isNotEmpty) {
+      await showDialog<void>(
         context: context,
-        barrierDismissible: false,
+        barrierDismissible: true,
         builder: (ctx) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: AppColors.advertencia),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text('Pérdida de Agua Elevada', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: const BoxDecoration(
+                  color: AppColors.advertenciaFondo,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.warning_amber_rounded, color: AppColors.advertencia, size: 24),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Avisos en Balance y Medidores',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textoPrincipal),
+                ),
               ),
             ],
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'El balance hídrico calculó un Agua No Registrada (ANR) de ${balance.aguaNoRegistrada.toStringAsFixed(2)} m³ (${balance.porcentajePerdida.toStringAsFixed(1)}%).\n\n'
-                'Supera el umbral operativo normal de 5,0 m³. Puede indicar fuga oculta en la red o subcontabilización de micromedidores.\n\n'
-                '¿Desea confirmar el registro? Debe ingresar obligatoriamente una observación técnica justificando la novedad.',
-                style: const TextStyle(fontSize: 12, height: 1.4),
-              ),
-            ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'La jornada se guardará directamente con las siguientes novedades detectadas:',
+                  style: TextStyle(fontSize: 12, color: AppColors.textoSecundario),
+                ),
+                const SizedBox(height: 10),
+                ...avisos.map(
+                  (txt) => Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.advertenciaFondo,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.advertenciaBorde, width: 1.0),
+                    ),
+                    child: Text(
+                      txt,
+                      style: const TextStyle(fontSize: 11, color: AppColors.advertencia, height: 1.35),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           actions: [
-            OutlinedButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Corregir'),
-            ),
             ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.advertencia),
-              child: const Text('Guardar de todos modos'),
+              onPressed: () => Navigator.pop(ctx),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.azulPrimario,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Entendido', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
       );
 
-      if (confirmar != true) return;
       if (!mounted) return;
-
-      if (_observacionesController.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Debe ingresar una observación justificando la pérdida elevada.'),
-            backgroundColor: AppColors.critico,
-          ),
-        );
-        return;
-      }
-
-      context.read<AlertasProvider>().agregarAlerta(
-        titulo: 'Pérdida hídrica anormal detectada',
-        descripcion: 'Balance hídrico con ANR de ${balance.aguaNoRegistrada.toStringAsFixed(2)} m³ (${balance.porcentajePerdida.toStringAsFixed(1)}%).',
-        severidad: SeveridadAlerta.advertencia,
-        parametro: 'Balance ANR',
-        valorRegistrado: balance.aguaNoRegistrada,
-      );
     }
 
     final listaLecturas = <LecturaMedidor>[];
@@ -237,6 +249,7 @@ class _FormularioJornadaMedidoresScreenState
       consumoTotalMicros: balance.consumoTotalMicros,
       consumoMacromedidor: balance.consumoMacromedidor,
       aguaNoRegistrada: balance.aguaNoRegistrada,
+      fueraDeRango: fueraDeRango,
       lecturas: listaLecturas,
       createdBy: authProvider.perfil?.id ?? 'operario',
       createdAt: DateTime.now(),
@@ -528,6 +541,21 @@ class _FormularioJornadaMedidoresScreenState
                               ),
                             ),
                           ],
+                        ),
+                        Builder(
+                          builder: (context) {
+                            final ant = _parse(antCtrl);
+                            final act = _parse(actCtrl);
+                            final eval = ValidadorRangos.validarLecturaMedidor(
+                              inicial: ant,
+                              finalLectura: act,
+                              nombreMedidor: m.nombre,
+                            );
+                            if (!eval.cumple) {
+                              return MensajeFueraDeRango(evaluacion: eval);
+                            }
+                            return const SizedBox.shrink();
+                          },
                         ),
                       ],
                     ),

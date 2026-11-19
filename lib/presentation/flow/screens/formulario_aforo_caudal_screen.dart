@@ -6,8 +6,10 @@ import '../../../core/constants/app_colors.dart';
 import '../../../data/models/aforo_caudal_modelo.dart';
 import '../../../data/models/alerta_sistema_modelo.dart';
 import '../../../domain/calculations/calculos_caudal.dart';
+import '../../../domain/validators/validador_rangos.dart';
 import '../../alerts/providers/alertas_provider.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../common/widgets/mensaje_fuera_de_rango.dart';
 import '../providers/caudal_provider.dart';
 
 class FormularioAforoCaudalScreen extends StatefulWidget {
@@ -105,20 +107,27 @@ class _FormularioAforoCaudalScreenState
       return;
     }
 
-    // Validación fuera de rango operativo
+    // Validación fuera de rango operativo (aviso informativo no bloqueante)
     final fueraDeRango = resultado.caudalLS < 10.0 || resultado.caudalLS > 140.0;
     if (fueraDeRango) {
-      final confirmar = await showDialog<bool>(
+      await showDialog<void>(
         context: context,
-        barrierDismissible: false,
+        barrierDismissible: true,
         builder: (ctx) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: AppColors.advertencia),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text('Caudal Fuera de Rango Operativo', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: const BoxDecoration(
+                  color: AppColors.advertenciaFondo,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.warning_amber_rounded, color: AppColors.advertencia, size: 24),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text('Aviso: Caudal fuera de rango', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textoPrincipal)),
               ),
             ],
           ),
@@ -128,42 +137,31 @@ class _FormularioAforoCaudalScreenState
             children: [
               Text(
                 'El caudal calculado es de ${resultado.caudalLS.toStringAsFixed(2)} L/s.\n\n'
-                '${resultado.caudalLS < 10.0 ? "El caudal es críticamente bajo en la fuente quebrada La Seca; riesgo de estiaje severo." : "El caudal supera la capacidad máxima de derivación y tratamiento."}\n\n'
-                '¿Desea confirmar el registro? Debe ingresar obligatoriamente una observación técnica justificando la novedad.',
-                style: const TextStyle(fontSize: 12, height: 1.4),
+                '${resultado.caudalLS < 10.0 ? "El caudal es críticamente bajo en la fuente quebrada La Seca; riesgo de estiaje severo." : "Puede superar la capacidad de tratamiento / indicar falla en la captación."}\n\n'
+                'El aforo se guardará directamente y generará una alerta en el sistema.',
+                style: const TextStyle(fontSize: 12, height: 1.4, color: AppColors.textoSecundario),
               ),
             ],
           ),
           actions: [
-            OutlinedButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Corregir'),
-            ),
             ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.advertencia),
-              child: const Text('Guardar de todos modos'),
+              onPressed: () => Navigator.pop(ctx),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.azulPrimario,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Entendido', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
       );
 
-      if (confirmar != true) return;
       if (!mounted) return;
-
-      if (_observacionesController.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Debe ingresar una observación justificando el caudal fuera de rango.'),
-            backgroundColor: AppColors.critico,
-          ),
-        );
-        return;
-      }
 
       context.read<AlertasProvider>().agregarAlerta(
         titulo: 'Caudal en fuente fuera de rango',
-        descripcion: 'Aforo arrojó ${resultado.caudalLS.toStringAsFixed(2)} L/s en Quebrada La Seca.',
+        descripcion:
+            'Aviso: aforo arrojó ${resultado.caudalLS.toStringAsFixed(2)} L/s en Quebrada La Seca (fuera del rango operativo 10–140 L/s). Puede superar la capacidad de tratamiento / indicar falla en la captación.',
         severidad: SeveridadAlerta.advertencia,
         parametro: 'Caudal Fuente',
         valorRegistrado: resultado.caudalLS,
@@ -198,6 +196,7 @@ class _FormularioAforoCaudalScreenState
       caudalM3H: resultado.caudalM3H,
       caudalLS: resultado.caudalLS,
       caudalLH: resultado.caudalLH,
+      fueraDeRango: fueraDeRango,
       observaciones: _observacionesController.text.trim(),
       createdBy: authProvider.perfil?.id ?? 'operario',
       createdAt: DateTime.now(),
@@ -389,6 +388,22 @@ class _FormularioAforoCaudalScreenState
                           ),
                         ],
                       ),
+                      if (resultado != null &&
+                          (resultado.caudalLS < 10.0 || resultado.caudalLS > 140.0)) ...[
+                        const SizedBox(height: 12),
+                        MensajeFueraDeRango(
+                          evaluacion: EvaluacionRango.fueraDeRango(
+                            parametro: 'Caudal Quebrada La Seca',
+                            valor: resultado.caudalLS,
+                            minimo: 10.0,
+                            maximo: 140.0,
+                            unidad: 'L/s',
+                            explicacion:
+                                'Puede superar la capacidad de tratamiento / indicar falla en la captación.',
+                            severidad: 'advertencia',
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

@@ -70,5 +70,28 @@ void main() {
       expect(ValidadorRangos.validarCloroResidual(0.1).cumple, isFalse);
       expect(ValidadorRangos.validarCloroResidual(2.8).cumple, isFalse);
     });
+
+    test('Validador no bloquea: lectura de medidor menor que anterior emite aviso', () {
+      final valMedidor = ValidadorRangos.validarLecturaMedidor(
+        inicial: 100.0,
+        finalLectura: 95.0,
+        nombreMedidor: 'ENCC',
+      );
+
+      expect(valMedidor.cumple, isFalse);
+      expect(valMedidor.severidad, 'advertencia');
+      expect(valMedidor.explicacion,
+          'La lectura actual es menor que la anterior; verifique el valor o si el medidor fue cambiado o reiniciado.');
+    });
+
+    test('Validador de rangos genera formato de aviso con diferencia y porcentaje', () {
+      final eval = ValidadorRangos.validarPhTratada(9.6);
+      expect(eval.cumple, isFalse);
+      expect(eval.mensajeCompleto, startsWith('Aviso: el valor 9,6'));
+      expect(eval.mensajeCompleto, contains('está por encima del máximo permitido de 9,0'));
+      expect(eval.mensajeCompleto, contains('diferencia: 0,6'));
+      expect(eval.mensajeCompleto, contains('6,5–9,0'));
+      expect(eval.mensajeCompleto, contains('El agua es alcalina; reduce la eficacia del cloro'));
+    });
   });
 }

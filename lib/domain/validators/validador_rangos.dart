@@ -83,28 +83,32 @@ class EvaluacionRango {
     String tipo = 'por_encima';
     double dif = 0.0;
     double pct = 0.0;
-    String direccionTexto = '';
 
     if (maximo != null && valor > maximo) {
       tipo = 'por_encima';
       dif = (valor - maximo).abs();
       pct = maximo != 0 ? (dif / maximo) * 100 : 0.0;
-      direccionTexto = 'POR ENCIMA del máximo permitido de $maxTxt $unidad';
     } else if (minimo != null && valor < minimo) {
       tipo = 'por_debajo';
       dif = (minimo - valor).abs();
       pct = minimo != 0 ? (dif / minimo) * 100 : 0.0;
-      direccionTexto = 'POR DEBAJO del mínimo permitido de $minTxt $unidad';
     }
 
     final difTxt = format.format(dif);
     final pctTxt = format.format(pct);
+    final uEspacio = (unidad.trim().isEmpty || unidad == 'pH') ? '' : ' $unidad';
+
+    final limiteTxt = tipo == 'por_encima' ? maxTxt : minTxt;
+    final direccionTexto = tipo == 'por_encima'
+        ? 'está por encima del máximo permitido de $limiteTxt$uEspacio'
+        : 'está por debajo del mínimo permitido de $limiteTxt$uEspacio';
+
     final rangoTexto = (minimo != null && maximo != null)
-        ? '$minTxt–$maxTxt $unidad'
-        : (maximo != null ? 'máx. $maxTxt $unidad' : 'mín. $minTxt $unidad');
+        ? '$minTxt–$maxTxt$uEspacio'
+        : (maximo != null ? 'máx. $maxTxt$uEspacio' : 'mín. $minTxt$uEspacio');
 
     final msgCompleto =
-        'Fuera de rango: el valor $valorTxt $unidad está $direccionTexto (fuera del rango, diferencia: $difTxt $unidad, $pctTxt %). Rango correcto: $rangoTexto. $explicacion';
+        'Aviso: el valor $valorTxt$uEspacio $direccionTexto (diferencia: $difTxt$uEspacio, $pctTxt %; fuera del rango). Rango correcto: $rangoTexto. $explicacion';
 
     return EvaluacionRango(
       cumple: false,
@@ -125,29 +129,29 @@ class EvaluacionRango {
 
 /// Validador central de límites normativos y técnicos (Res. 2115 de 2007, DO-F-070 y operación PTAP)
 class ValidadorRangos {
-  // 1. Agua Cruda
-  static const double phCrudaMin = 5.0;
-  static const double phCrudaMax = 9.0;
-  static const double turbidezCrudaMax = 10.0; // UJT
-  static const double colorCrudaMax = 20.0;     // UPC
+  // 1. Agua Cruda (Valores dinámicos configurables por Administrador)
+  static double phCrudaMin = 5.0;
+  static double phCrudaMax = 9.0;
+  static double turbidezCrudaMax = 10.0; // UJT
+  static double colorCrudaMax = 20.0;     // UPC
 
   // 2. Agua Tratada (Res. 2115 de 2007)
-  static const double phTratadaMin = 6.5;
-  static const double phTratadaMax = 9.0;
-  static const double turbidezTratadaMax = 2.0; // UNT / NTU
-  static const double colorTratadaMax = 15.0;   // UPC
-  static const double cloroMin = 0.3;           // mg/L
-  static const double cloroMax = 2.0;           // mg/L
+  static double phTratadaMin = 6.5;
+  static double phTratadaMax = 9.0;
+  static double turbidezTratadaMax = 2.0; // UNT / NTU
+  static double colorTratadaMax = 15.0;   // UPC
+  static double cloroMin = 0.3;           // mg/L
+  static double cloroMax = 2.0;           // mg/L
 
   // 3. Hidráulica y Red (Operación de Planta PTAP SENA)
-  static const double caudalEntradaMin = 110.0; // L/s
-  static const double caudalEntradaMax = 140.0; // L/s
-  static const double caudalSalidaMin = 105.0;  // L/s
-  static const double caudalSalidaMax = 135.0;  // L/s
-  static const double presionRedMin = 2.8;      // bar
-  static const double presionRedMax = 4.0;      // bar
-  static const double presionRedCritica = 4.2;  // bar
-  static const double nivelTanqueMin = 40.0;    // %
+  static double caudalEntradaMin = 110.0; // L/s
+  static double caudalEntradaMax = 140.0; // L/s
+  static double caudalSalidaMin = 105.0;  // L/s
+  static double caudalSalidaMax = 135.0;  // L/s
+  static double presionRedMin = 2.8;      // bar
+  static double presionRedMax = 4.0;      // bar
+  static double presionRedCritica = 4.2;  // bar
+  static double nivelTanqueMin = 40.0;    // %
   static const double nivelTanqueCritico = 20.0;// %
 
   /// Valida pH en agua cruda (5.0 a 9.0)
@@ -353,9 +357,8 @@ class ValidadorRangos {
         maximo: caudalEntradaMax,
         unidad: 'L/s',
         severidad: esMayor ? 'critica' : 'advertencia',
-        explicacion: esMayor
-            ? 'Puede superar la capacidad de tratamiento de floculadores y sedimentadores.'
-            : 'Caudal bajo en captación; verificar estado de rejillas o nivel de la fuente.',
+        explicacion:
+            'Puede superar la capacidad de tratamiento / indicar falla en la captación.',
       );
     }
     return EvaluacionRango.correcto('L/s', valor: valor, min: caudalEntradaMin, max: caudalEntradaMax);
@@ -373,7 +376,6 @@ class ValidadorRangos {
       );
     }
     if (valor < caudalSalidaMin || valor > caudalSalidaMax) {
-      final esMayor = valor > caudalSalidaMax;
       return EvaluacionRango.fueraDeRango(
         parametro: 'Caudal de salida',
         valor: valor,
@@ -381,9 +383,8 @@ class ValidadorRangos {
         maximo: caudalSalidaMax,
         unidad: 'L/s',
         severidad: 'advertencia',
-        explicacion: esMayor
-            ? 'Riesgo de sobrepresión en conducción o despresurización de tanques.'
-            : 'Riesgo de desabastecimiento de red o demanda reprimida en el municipio.',
+        explicacion:
+            'Puede superar la capacidad de tratamiento / indicar falla en la captación.',
       );
     }
     return EvaluacionRango.correcto('L/s', valor: valor, min: caudalSalidaMin, max: caudalSalidaMax);
@@ -409,9 +410,8 @@ class ValidadorRangos {
         maximo: presionRedMax,
         unidad: 'bar',
         severidad: esCritica ? 'critica' : 'advertencia',
-        explicacion: valor > presionRedMax
-            ? 'Riesgo inminente de rotura de tuberías o golpes de ariete en la red.'
-            : 'Presión insuficiente; riesgo de desabastecimiento en zonas altas y cavitación.',
+        explicacion:
+            'Riesgo de fugas o rotura de tubería / suministro insuficiente en la red.',
       );
     }
     return EvaluacionRango.correcto('bar', valor: valor, min: presionRedMin, max: presionRedMax);
@@ -460,12 +460,18 @@ class ValidadorRangos {
       );
     }
     if (finalLectura < inicial) {
-      return EvaluacionRango.invalido(
-        parametro: nombreMedidor,
-        motivo:
-            'Lectura final no puede ser menor a la inicial; verifique si el medidor dio la vuelta o hubo error de digitación.',
+      return EvaluacionRango(
+        cumple: false,
         unidad: 'm³',
         valor: finalLectura,
+        tipo: 'por_debajo',
+        severidad: 'advertencia',
+        explicacion:
+            'La lectura actual es menor que la anterior; verifique el valor o si el medidor fue cambiado o reiniciado.',
+        mensajeAlerta:
+            'Aviso en $nombreMedidor: La lectura actual es menor que la anterior; verifique el valor o si el medidor fue cambiado o reiniciado.',
+        mensajeCompleto:
+            'Aviso: en $nombreMedidor la lectura actual ($finalLectura m³) es menor que la anterior ($inicial m³); verifique el valor o si el medidor fue cambiado o reiniciado.',
       );
     }
     return EvaluacionRango.correcto('m³', valor: finalLectura - inicial);

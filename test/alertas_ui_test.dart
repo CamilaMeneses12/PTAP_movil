@@ -60,8 +60,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('¡Alerta Crítica!'), findsOneWidget);
-      expect(find.textContaining('POR ENCIMA del máximo permitido'), findsOneWidget);
-      expect(find.textContaining('diferencia: 0,2 pH'), findsOneWidget);
+      expect(find.textContaining('está por encima del máximo permitido'), findsOneWidget);
+      expect(find.textContaining('diferencia: 0,2'), findsOneWidget);
       expect(find.byType(MensajeFueraDeRango), findsOneWidget);
     });
   });
