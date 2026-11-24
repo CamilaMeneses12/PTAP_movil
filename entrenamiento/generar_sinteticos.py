@@ -23,22 +23,27 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from comun import ALTO, ANCHO, DATOS, DIGITOS, DIGITOS_ENTEROS
 
-FUENTES_WINDOWS = [
-    "arialbd.ttf", "arial.ttf", "ARIALN.TTF", "ARIALNB.TTF", "calibrib.ttf", "calibri.ttf",
-    "tahomabd.ttf", "tahoma.ttf", "verdanab.ttf", "segoeuib.ttf", "segoeui.ttf", "bahnschrift.ttf",
-    "consolab.ttf", "trebucbd.ttf",
+# El contador real usa números DELGADOS y ANGOSTOS (el "1" es una rayita fina).
+FUENTES_DELGADAS = [
+    "ARIALN.TTF", "arial.ttf", "calibril.ttf", "calibri.ttf", "segoeuil.ttf", "segoeui.ttf",
+    "segoeuisl.ttf", "bahnschrift.ttf", "tahoma.ttf", "verdana.ttf", "trebuc.ttf", "candara.ttf",
+    "corbel.ttf", "framd.ttf",
 ]
+FUENTES_GRUESAS = ["arialbd.ttf", "ARIALNB.TTF", "calibrib.ttf", "segoeuib.ttf", "tahomabd.ttf"]
 
 
 def cargar_fuentes():
-    rutas = []
-    for nombre in FUENTES_WINDOWS:
-        ruta = Path("C:/Windows/Fonts") / nombre
-        if ruta.exists():
-            rutas.append(str(ruta))
-    if not rutas:
+    def existentes(nombres):
+        return [str(Path("C:/Windows/Fonts") / n) for n in nombres if (Path("C:/Windows/Fonts") / n).exists()]
+
+    delgadas, gruesas = existentes(FUENTES_DELGADAS), existentes(FUENTES_GRUESAS)
+    if not delgadas and not gruesas:
         raise SystemExit("No se encontraron fuentes en C:/Windows/Fonts")
-    return rutas
+    return {"delgadas": delgadas or gruesas, "gruesas": gruesas or delgadas}
+
+
+def elegir_fuente(fuentes):
+    return random.choice(fuentes["delgadas"] if random.random() < 0.85 else fuentes["gruesas"])
 
 
 def valor_a_rodillos(valor: float):
@@ -65,17 +70,33 @@ def etiqueta(rodillos):
     return [(d + (1 if f >= 0.5 else 0)) % 10 for d, f in rodillos]
 
 
-def dibujar_rodillo(ancho, alto, digito, fraccion, fondo, tinta, fuente):
+def glifo(valor, fuente, tinta, angostura):
+    """Dibuja un dígito y lo comprime a lo ancho (los números del contador son angostos)."""
+    caja = fuente.getbbox(str(valor))
+    w, h = caja[2] - caja[0] + 4, caja[3] - caja[1] + 4
+    capa = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ImageDraw.Draw(capa).text((2 - caja[0], 2 - caja[1]), str(valor), fill=tinta + (255,), font=fuente)
+    return capa.resize((max(1, int(w * angostura)), h), Image.BILINEAR)
+
+
+def dibujar_rodillo(ancho, alto, digito, fraccion, fondo, tinta, fuente, opciones):
     """Un rodillo con el dígito actual subiendo y el siguiente apareciendo por abajo."""
     celda = Image.new("RGB", (ancho, alto), fondo)
     d = ImageDraw.Draw(celda)
-    paso = alto * random.uniform(0.95, 1.15)  # distancia entre números en la cinta
+    # Estrías horizontales del rodillo (más visibles en los blancos)
+    if opciones["estrias"]:
+        for y in range(0, alto, max(3, alto // random.randint(8, 16))):
+            d.line((0, y, ancho, y), fill=color_aleatorio(fondo, 18), width=1)
+    paso = alto * opciones["paso"]  # distancia entre números: se alcanzan a ver el anterior y el siguiente
     desplazamiento = fraccion * paso
     for k, valor in ((-1, (digito - 1) % 10), (0, digito), (1, (digito + 1) % 10)):
         y = alto / 2 + k * paso - desplazamiento
-        caja = d.textbbox((0, 0), str(valor), font=fuente)
-        w, h = caja[2] - caja[0], caja[3] - caja[1]
-        d.text((ancho / 2 - w / 2 - caja[0], y - h / 2 - caja[1]), str(valor), fill=tinta, font=fuente)
+        g = glifo(valor, fuente, tinta, opciones["angostura"])
+        celda.paste(g, (int(ancho / 2 - g.width / 2), int(y - g.height / 2)), g)
+        # Rayita "_" bajo el número (en el contador real aparece en los rodillos rojos)
+        if opciones["subrayado"]:
+            ys = int(y + g.height / 2 + alto * 0.05)
+            d.line((ancho * 0.2, ys, ancho * 0.6, ys), fill=tinta, width=max(1, alto // 30))
     # Sombra de curvatura del rodillo (más oscuro arriba y abajo)
     sombra = Image.new("L", (1, alto))
     for y in range(alto):
@@ -123,16 +144,20 @@ def generar_muestra(fuentes):
     # Número de serie dorado grabado encima de la ventana (distractor)
     if random.random() < 0.75:
         serie = f"{random.randint(10, 99)} {random.randint(0, 999999):06d}m³"
-        fuente_serie = ImageFont.truetype(random.choice(fuentes), random.randint(34, 52))
+        fuente_serie = ImageFont.truetype(elegir_fuente(fuentes), random.randint(34, 52))
         d.text((vx + random.randint(-10, 40), max(0, vy - random.randint(70, 95))), serie,
                fill=color_aleatorio((185, 160, 95), 30), font=fuente_serie)
 
     # Rodillos: dentro del tramo recto de la ventana (los extremos redondos no tapan los dígitos)
     fondo_ventana = Image.new("RGB", (vw, vh), color_aleatorio((215, 215, 215), 20))
-    inset = int(vh * random.uniform(0.18, 0.32))
+    inset = int(vh * random.uniform(0.06, 0.25))
     zona = Image.new("RGB", (vw - 2 * inset, vh), (235, 235, 235))
-    tamano_fuente = int(vh * random.uniform(0.62, 0.8))
-    fuente = ImageFont.truetype(random.choice(fuentes), tamano_fuente)
+    tamano_fuente = int(vh * random.uniform(0.7, 0.98))
+    fuente = ImageFont.truetype(elegir_fuente(fuentes), tamano_fuente)
+    opciones_base = {
+        "angostura": random.uniform(0.55, 0.95),
+        "paso": random.uniform(0.82, 1.08),
+    }
     ancho_celda = zona.width / DIGITOS
     separador = color_aleatorio((70, 70, 70), 30)
     blanco = color_aleatorio((238, 238, 236), 15)
@@ -142,10 +167,18 @@ def generar_muestra(fuentes):
         fondo = rojo if es_decimal else blanco
         tinta = color_aleatorio((250, 250, 250), 8) if es_decimal else color_aleatorio((20, 20, 25), 15)
         x0, x1 = int(i * ancho_celda), int((i + 1) * ancho_celda)
-        celda = dibujar_rodillo(x1 - x0, vh, digito, fraccion, fondo, tinta, fuente)
+        opciones = dict(opciones_base,
+                        estrias=random.random() < (0.6 if not es_decimal else 0.3),
+                        subrayado=es_decimal and random.random() < 0.6)
+        celda = dibujar_rodillo(x1 - x0, vh, digito, fraccion, fondo, tinta, fuente, opciones)
         zona.paste(celda, (x0, 0))
         ImageDraw.Draw(zona).line((x0, 0, x0, vh), fill=separador, width=random.randint(1, 3))
 
+    if random.random() < 0.5:
+        dz = ImageDraw.Draw(zona)
+        xp = zona.width - random.randint(3, 8)
+        for yp in range(int(vh * 0.2), int(vh * 0.85), max(4, vh // 9)):
+            dz.ellipse((xp - 1, yp - 1, xp + 1, yp + 1), fill=(240, 240, 240))
     fondo_ventana.paste(zona, (inset, 0))
     mascara = Image.new("L", (vw, vh), 0)
     ImageDraw.Draw(mascara).rounded_rectangle((0, 0, vw - 1, vh - 1), radius=vh // 2, fill=255)
@@ -160,6 +193,17 @@ def generar_muestra(fuentes):
         reflejo = reflejo.filter(ImageFilter.GaussianBlur(18))
         imagen = Image.composite(Image.new("RGB", imagen.size, (255, 255, 255)), imagen, reflejo)
 
+    if random.random() < 0.5:
+        franja = Image.new("L", (lienzo_w, lienzo_h), 0)
+        x0f = random.randint(vx, vx + vw)
+        anchof = random.randint(10, 60)
+        inclinacion = random.randint(-80, 80)
+        ImageDraw.Draw(franja).polygon(
+            [(x0f, vy), (x0f + anchof, vy), (x0f + anchof + inclinacion, vy + vh), (x0f + inclinacion, vy + vh)],
+            fill=random.randint(40, 130))
+        franja = franja.filter(ImageFilter.GaussianBlur(random.uniform(3, 12)))
+        imagen = Image.composite(Image.new("RGB", imagen.size, (255, 255, 255)), imagen, franja)
+
     # Suciedad (manchas pequeñas)
     d = ImageDraw.Draw(imagen)
     for _ in range(random.randint(0, 8)):
@@ -169,8 +213,12 @@ def generar_muestra(fuentes):
 
     # Inclinación y recorte holgado (como el recuadro guía de la app)
     imagen = imagen.rotate(random.uniform(-6, 6), resample=Image.BILINEAR, expand=False, fillcolor=carcasa)
-    margen_x = vw * random.uniform(0.0, 0.12)
-    margen_y = vh * random.uniform(0.05, 0.45)
+    if random.random() < 0.7:
+        margen_x = vw * random.uniform(-0.04, 0.04)
+        margen_y = vh * random.uniform(-0.06, 0.14)
+    else:
+        margen_x = vw * random.uniform(0.0, 0.12)
+        margen_y = vh * random.uniform(0.05, 0.45)
     caja = (vx - margen_x + random.uniform(-10, 10), vy - margen_y + random.uniform(-8, 8),
             vx + vw + margen_x + random.uniform(-10, 10), vy + vh + margen_y + random.uniform(-8, 8))
     imagen = imagen.crop(tuple(int(v) for v in caja))
