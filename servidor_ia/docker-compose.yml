@@ -1,0 +1,26 @@
+# Base de datos del Asistente PTAP.
+# Las variables salen del archivo .env de esta carpeta (copie .env.ejemplo como .env).
+# Usa el puerto 5433 porque el 5432 ya lo ocupa ptap_postgres (el proyecto PTAP web).
+services:
+  postgres:
+    image: postgres:${POSTGRES_VERSION:-18}
+    container_name: ptap_ia_postgres
+    environment:
+      POSTGRES_DB: ${DB_NOMBRE:-ptap_ia}
+      POSTGRES_USER: ${DB_USUARIO:-ptap_ia}
+      POSTGRES_PASSWORD: ${DB_CLAVE:?Defina DB_CLAVE en el archivo .env}
+      TZ: America/Bogota
+    ports:
+      - "${DB_PUERTO:-5433}:5432"
+    volumes:
+      # Desde PostgreSQL 18 los datos van en /var/lib/postgresql (no en .../data)
+      - postgres_datos:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  postgres_datos:

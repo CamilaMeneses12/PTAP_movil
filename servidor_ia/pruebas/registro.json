@@ -1,0 +1,9 @@
+{
+  "tipo": "fisicoquimico",
+  "valores": [
+    { "parametro": "ph_tratada", "valor": 7.1 },
+    { "parametro": "turbidez_tratada", "valor": 0.8 },
+    { "parametro": "cloro_residual", "valor": 0.2 }
+  ],
+  "observacion": "Muestra del tanque de almacenamiento"
+}

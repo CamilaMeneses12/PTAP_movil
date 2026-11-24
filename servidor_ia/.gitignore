@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+# Tokens de prueba y resultados del banco de pruebas
+pruebas/.token-*
+pruebas/resultados-acceso.csv
+# Configuración local de Claude Code (puede contener tokens)
+.mcp.json
