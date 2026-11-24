@@ -84,6 +84,25 @@ class HomeScreen extends StatelessWidget {
                     ],
                   ),
 
+                  // Botón del Asistente PTAP (chatbot)
+                  Container(
+                    width: 42,
+                    height: 42,
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.blanco,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.bordes),
+                      boxShadow: AppColors.sombraSuave,
+                    ),
+                    child: IconButton(
+                      key: const Key('abrir_asistente'),
+                      tooltip: 'Asistente PTAP',
+                      icon: const Icon(Icons.smart_toy_outlined, size: 22, color: AppColors.azulMarino),
+                      onPressed: () => context.push(AppRoutes.asistente),
+                    ),
+                  ),
+
                   // Botón campana de notificaciones con insignia de alertas activas
                   Stack(
                     alignment: Alignment.center,

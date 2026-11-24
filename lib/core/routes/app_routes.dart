@@ -6,6 +6,7 @@ import '../../data/models/registro_fisicoquimico.dart';
 import '../../data/models/usuario_perfil.dart';
 import '../../presentation/admin/screens/admin_dashboard_screen.dart';
 import '../../presentation/alerts/screens/alertas_screen.dart';
+import '../../presentation/asistente/screens/asistente_screen.dart';
 import '../../presentation/auth/providers/auth_provider.dart';
 import '../../presentation/auth/screens/login_screen.dart';
 import '../../presentation/auth/screens/perfil_screen.dart';
@@ -46,6 +47,9 @@ class AppRoutes {
 
   // Pantalla de Alertas (abierta encima del shell con "<")
   static const String alertas = '/alertas';
+
+  // Asistente PTAP (chatbot: servidor con nube + modelo local, o modelo dentro del celular)
+  static const String asistente = '/asistente';
 
   // Parámetros Fisicoquímicos (DO-F-070)
   static const String fisicoquimicos = '/fisicoquimicos';
@@ -200,6 +204,11 @@ class AppRoutes {
           path: alertas,
           name: 'alertas',
           builder: (context, state) => const AlertasScreen(),
+        ),
+        GoRoute(
+          path: asistente,
+          name: 'asistente',
+          builder: (context, state) => const AsistenteScreen(),
         ),
 
         // Sub-rutas de Formularios y Detalles (encima del shell)

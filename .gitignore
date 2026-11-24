@@ -58,3 +58,6 @@ log.txt
 entrenamiento/.venv/
 entrenamiento/datos/
 entrenamiento/modelos/*.keras
+
+# Archivos temporales del compilador de Kotlin
+android/.kotlin/

@@ -7,6 +7,7 @@ import 'core/theme/app_theme.dart';
 import 'core/utils/supabase_config.dart';
 import 'presentation/admin/providers/admin_provider.dart';
 import 'presentation/alerts/providers/alertas_provider.dart';
+import 'presentation/asistente/providers/asistente_provider.dart';
 import 'presentation/auth/providers/auth_provider.dart';
 import 'presentation/flow/providers/caudal_provider.dart';
 import 'presentation/history/providers/historial_provider.dart';
@@ -44,6 +45,7 @@ class _PlantaAguaAppState extends State<PlantaAguaApp> {
   late final AlertasProvider _alertasProvider;
   late final UmbralesProvider _umbralesProvider;
   late final PreferenciasProvider _preferenciasProvider;
+  late final AsistenteProvider _asistenteProvider;
 
   @override
   void initState() {
@@ -58,6 +60,7 @@ class _PlantaAguaAppState extends State<PlantaAguaApp> {
     // Carga los umbrales vigentes (Supabase o valores normativos) y los aplica al validador
     _umbralesProvider = UmbralesProvider()..cargar();
     _preferenciasProvider = PreferenciasProvider();
+    _asistenteProvider = AsistenteProvider();
   }
 
   @override
@@ -73,6 +76,7 @@ class _PlantaAguaAppState extends State<PlantaAguaApp> {
         ChangeNotifierProvider.value(value: _alertasProvider),
         ChangeNotifierProvider.value(value: _umbralesProvider),
         ChangeNotifierProvider.value(value: _preferenciasProvider),
+        ChangeNotifierProvider.value(value: _asistenteProvider),
       ],
       child: Builder(
         builder: (context) {
