@@ -11,7 +11,6 @@ import '../../../domain/calculations/calculos_medidores.dart';
 import '../../../domain/validators/validador_rangos.dart';
 import '../../alerts/providers/alertas_provider.dart';
 import '../../auth/providers/auth_provider.dart';
-import '../../common/widgets/mensaje_fuera_de_rango.dart';
 import '../../settings/providers/preferencias_provider.dart';
 import '../providers/medidores_provider.dart';
 import 'captura_medidor_screen.dart';
@@ -155,8 +154,8 @@ class _FormularioJornadaMedidoresScreenState
     final authProvider = context.read<SesionUsuarioProvider>();
     final alertasProv = context.read<AlertasProvider>();
 
-    // Recopilar avisos informativos (sin bloquear)
-    final avisos = <String>[];
+    // Las anomalías no se muestran al operario mientras registra: se marcan en el registro
+    // (fuera_de_rango) y se envían a la pantalla Alertas.
     bool fueraDeRango = false;
 
     for (final m in medidores) {
@@ -169,7 +168,6 @@ class _FormularioJornadaMedidoresScreenState
       );
       if (!val.cumple) {
         fueraDeRango = true;
-        avisos.add(val.mensajeCompleto);
         alertasProv.agregarAlerta(
           titulo: 'Lectura de medidor anómala',
           descripcion: val.mensajeCompleto,
@@ -183,9 +181,6 @@ class _FormularioJornadaMedidoresScreenState
     final perdidaAlta = balance.aguaNoRegistrada.abs() > 5.0;
     if (perdidaAlta) {
       fueraDeRango = true;
-      avisos.add(
-        'El balance hídrico calculó un Agua No Registrada (ANR) de ${balance.aguaNoRegistrada.toStringAsFixed(2)} m³ (${balance.porcentajePerdida.toStringAsFixed(1)}%), superando el umbral normal de 5,0 m³.',
-      );
       alertasProv.agregarAlerta(
         titulo: 'Pérdida hídrica anormal detectada',
         descripcion:
@@ -194,76 +189,6 @@ class _FormularioJornadaMedidoresScreenState
         parametro: 'Balance ANR',
         valorRegistrado: balance.aguaNoRegistrada,
       );
-    }
-
-    // Diálogo informativo no bloqueante si hay avisos
-    if (avisos.isNotEmpty) {
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: true,
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: const BoxDecoration(
-                  color: AppColors.advertenciaFondo,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.warning_amber_rounded, color: AppColors.advertencia, size: 24),
-              ),
-              const SizedBox(width: 10),
-              const Expanded(
-                child: Text(
-                  'Avisos en Balance y Medidores',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textoPrincipal),
-                ),
-              ),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'La jornada se guardará directamente con las siguientes novedades detectadas:',
-                  style: TextStyle(fontSize: 12, color: AppColors.textoSecundario),
-                ),
-                const SizedBox(height: 10),
-                ...avisos.map(
-                  (txt) => Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppColors.advertenciaFondo,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.advertenciaBorde, width: 1.0),
-                    ),
-                    child: Text(
-                      txt,
-                      style: const TextStyle(fontSize: 11, color: AppColors.advertencia, height: 1.35),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.azulPrimario,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: const Text('Entendido', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
-      );
-
-      if (!mounted) return;
     }
 
     setState(() => _guardando = true);
@@ -684,21 +609,6 @@ class _FormularioJornadaMedidoresScreenState
                               ],
                             ),
                           ),
-                        Builder(
-                          builder: (context) {
-                            final ant = _parse(antCtrl);
-                            final act = _parse(actCtrl);
-                            final eval = ValidadorRangos.validarLecturaMedidor(
-                              inicial: ant,
-                              finalLectura: act,
-                              nombreMedidor: m.nombre,
-                            );
-                            if (!eval.cumple) {
-                              return MensajeFueraDeRango(evaluacion: eval);
-                            }
-                            return const SizedBox.shrink();
-                          },
-                        ),
                       ],
                     ),
                   ),

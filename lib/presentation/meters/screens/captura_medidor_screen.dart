@@ -9,8 +9,6 @@ import '../../../data/services/dataset_medidores_service.dart';
 import '../../../data/services/lector_medidor_ia_service.dart';
 import '../../../data/services/ocr_medidor_service.dart';
 import '../../../domain/ocr/interprete_lectura_medidor.dart';
-import '../../../domain/validators/validador_rangos.dart';
-import '../../common/widgets/mensaje_fuera_de_rango.dart';
 
 /// Lectura obtenida con la cámara para un medidor.
 class LecturaCapturada {
@@ -409,15 +407,6 @@ class _CapturaMedidorScreenState extends State<CapturaMedidorScreen> with Widget
   }
 
   Widget _vistaConfirmacion() {
-    final valor = _valorEscrito;
-    final evaluacion = valor == null
-        ? null
-        : ValidadorRangos.validarLecturaMedidor(
-            inicial: _anterior,
-            finalLectura: valor,
-            nombreMedidor: _medidor.nombre,
-          );
-
     final (Color colorConf, Color fondoConf, String textoConf) = switch (_lecturaOcr?.confianza) {
       ConfianzaOcr.alta => (AppColors.exito, AppColors.exitoFondo, 'Lectura clara'),
       ConfianzaOcr.media => (AppColors.advertencia, AppColors.advertenciaFondo, 'Revise el valor'),
@@ -470,10 +459,6 @@ class _CapturaMedidorScreenState extends State<CapturaMedidorScreen> with Widget
           ),
           onChanged: (_) => setState(() => _errorValor = null),
         ),
-        if (evaluacion != null && !evaluacion.cumple) ...[
-          const SizedBox(height: 8),
-          MensajeFueraDeRango(evaluacion: evaluacion),
-        ],
         const SizedBox(height: 20),
         Row(
           children: [
