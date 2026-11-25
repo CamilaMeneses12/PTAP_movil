@@ -1,4 +1,3 @@
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -6,14 +5,12 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../alerts/providers/alertas_provider.dart';
 import '../../auth/providers/auth_provider.dart';
-import '../../common/widgets/banner_estado_planta.dart';
-import '../../common/widgets/chip_estado.dart';
-import '../../common/widgets/tarjeta_alerta.dart';
-import '../../common/widgets/tarjeta_kpi.dart';
+import '../../../domain/calculations/resumen_inicio.dart';
 import '../../flow/providers/caudal_provider.dart';
 import '../../history/providers/historial_provider.dart';
 import '../../meters/providers/medidores_provider.dart';
 import '../../physicochemical/providers/fisicoquimico_provider.dart';
+import '../widgets/tarjetas_inicio.dart';
 
 class HomeScreen extends StatelessWidget {
   final void Function(int indice)? alCambiarPestana;
@@ -33,6 +30,12 @@ class HomeScreen extends StatelessWidget {
     final fisicoProv = context.watch<FisicoquimicoProvider>();
     final caudalProv = context.watch<CaudalProvider>();
     final medidoresProv = context.watch<MedidoresProvider>();
+
+    final calidad = ResumenInicio.calidadAguaTratada(fisicoProv.registros);
+    final caudal = ResumenInicio.caudalQuebrada(caudalProv.aforos);
+    final jornada = ResumenInicio.ultimaJornada(medidoresProv.jornadas);
+    final VoidCallback? registrarFisico =
+        puedeEditar ? () => context.push(AppRoutes.fisicoquimicoNuevo) : null;
 
     return Scaffold(
       backgroundColor: AppColors.fondoGeneral,
@@ -62,7 +65,7 @@ class HomeScreen extends StatelessWidget {
                           const Icon(Icons.water_drop_outlined, size: 12, color: AppColors.turquesa),
                           const SizedBox(width: 4),
                           Text(
-                            '${perfil?.plantaNombre ?? "PTAP Villa Clara"} · Turno A',
+                            perfil?.plantaNombre ?? 'PTAP Villa Clara',
                             style: const TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w500,
@@ -150,319 +153,48 @@ class HomeScreen extends StatelessWidget {
 
               const SizedBox(height: 14),
 
-              // 2. Banner de estado de la planta con ondas
-              BannerEstadoPlanta(
-                estado: alertasProv.criticasCount > 0
-                    ? TipoEstadoPlanta.enAlerta
-                    : TipoEstadoPlanta.operativa,
-                eficiencia: '95,6 %',
-                turbidez: '0,42 NTU',
-                cloro: '1,1 mg/L',
-              ),
-
-              const SizedBox(height: 18),
-
-              // 3. Indicadores principales (Grid 2x2)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Indicadores principales',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textoPrincipal,
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.turquesaFondo,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.sensors_rounded, size: 12, color: AppColors.turquesa),
-                        SizedBox(width: 3),
-                        Text(
-                          'En vivo',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.turquesa,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-
-              // Grid 2x2 de tarjetas KPI
-              Row(
-                children: [
-                  Expanded(
-                    child: TarjetaKpi(
-                      titulo: 'Caudal de entrada',
-                      valor: '128,4',
-                      unidad: 'L/s',
-                      icono: Icons.arrow_downward_rounded,
-                      variacion: '+2,1 %',
-                      variacionPositiva: true,
-                      notaRango: 'Rango 110–140 L/s',
-                      alPulsar: () => alCambiarPestana?.call(1),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TarjetaKpi(
-                      titulo: 'Volumen tratado hoy',
-                      valor: '4.286',
-                      unidad: 'm³',
-                      icono: Icons.water_drop_outlined,
-                      variacion: '+2,8 %',
-                      variacionPositiva: true,
-                      notaRango: 'Meta 4.000 m³/día',
-                      alPulsar: () => alCambiarPestana?.call(2),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 14),
-
-              // 4. Tarjeta "Nivel de almacenamiento" con barra de progreso
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.blanco,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.bordes),
-                  boxShadow: AppColors.sombraSuave,
+              // 2. Tarjetas calculadas con los registros del operario (DO-F-070, medidores,
+              //    aforos y alertas). Se actualizan solas porque escuchan a los providers.
+              TarjetaPendientesHoy(
+                estado: ResumenInicio.pendientesDeHoy(
+                  fisicoquimicos: fisicoProv.registros,
+                  jornadas: medidoresProv.jornadas,
+                  aforos: caudalProv.aforos,
+                  ahora: DateTime.now(),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Nivel de almacenamiento',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textoPrincipal,
-                              ),
-                            ),
-                            Text(
-                              'Tanque principal · 2.500 m³',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: AppColors.textoSecundario,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          '78 %',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textoPrincipal,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Barra de progreso de nivel
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: LinearProgressIndicator(
-                        value: 0.78,
-                        minHeight: 8,
-                        backgroundColor: AppColors.fondoGeneral,
-                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.turquesa),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-
-                    const Text(
-                      '1.950 m³ disponibles · Mín. operativo 40 % · Autonomía 4.4 h',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textoSecundario,
-                      ),
-                    ),
-                  ],
-                ),
+                alAbrirFormulario: puedeEditar ? (f) => context.push(_rutaFormulario(f)) : null,
+              ),
+              TarjetaCalidadAgua(
+                calidad: calidad,
+                alRegistrar: registrarFisico,
+                alVerDetalle: calidad == null
+                    ? null
+                    : () => context.push(AppRoutes.fisicoquimicoDetalle, extra: calidad.registro),
+              ),
+              TarjetaTendenciaCloro(
+                puntos: ResumenInicio.tendenciaCloro(fisicoProv.registros),
+                alRegistrar: registrarFisico,
+              ),
+              TarjetaCaudalQuebrada(
+                caudal: caudal,
+                alRegistrar: puedeEditar ? () => context.push(AppRoutes.caudalNuevo) : null,
+                alVerDetalle: caudal == null
+                    ? null
+                    : () => context.push(AppRoutes.caudalDetalle, extra: caudal.ultimo),
+              ),
+              TarjetaPerdidasAgua(
+                jornada: jornada,
+                alRegistrar: puedeEditar ? () => context.push(AppRoutes.medidoresNuevo) : null,
+                alVerDetalle: jornada == null
+                    ? null
+                    : () => context.push(AppRoutes.medidoresDetalle, extra: jornada),
+              ),
+              TarjetaAlertasActivas(
+                resumen: ResumenInicio.resumenAlertas(alertasProv.activas),
+                alPulsar: () => context.push(AppRoutes.alertas),
               ),
 
-              const SizedBox(height: 18),
-
-              // 5. Comportamiento del caudal (últimas 24 h)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Comportamiento del caudal',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textoPrincipal,
-                    ),
-                  ),
-                  InkWell(
-                    onTap: () => alCambiarPestana?.call(1),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Detalle',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.azulPrimario,
-                          ),
-                        ),
-                        Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.azulPrimario),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-
-              // Gráfica de Líneas del caudal de entrada
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.blanco,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.bordes),
-                  boxShadow: AppColors.sombraSuave,
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppColors.azulPrimario, shape: BoxShape.circle)),
-                        const SizedBox(width: 4),
-                        const Text('Entrada', style: TextStyle(fontSize: 11, color: AppColors.textoSecundario)),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    SizedBox(
-                      height: 130,
-                      child: LineChart(
-                        LineChartData(
-                          gridData: const FlGridData(show: false),
-                          titlesData: FlTitlesData(
-                            leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            bottomTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 18,
-                                getTitlesWidget: (value, meta) {
-                                  switch (value.toInt()) {
-                                    case 0:
-                                      return const Text('00h', style: TextStyle(fontSize: 9, color: AppColors.textoSecundario));
-                                    case 3:
-                                      return const Text('06h', style: TextStyle(fontSize: 9, color: AppColors.textoSecundario));
-                                    case 6:
-                                      return const Text('12h', style: TextStyle(fontSize: 9, color: AppColors.textoSecundario));
-                                    case 9:
-                                      return const Text('18h', style: TextStyle(fontSize: 9, color: AppColors.textoSecundario));
-                                    case 11:
-                                      return const Text('24h', style: TextStyle(fontSize: 9, color: AppColors.textoSecundario));
-                                  }
-                                  return const SizedBox.shrink();
-                                },
-                              ),
-                            ),
-                          ),
-                          borderData: FlBorderData(show: false),
-                          minX: 0,
-                          maxX: 11,
-                          minY: 90,
-                          maxY: 150,
-                          lineBarsData: [
-                            LineChartBarData(
-                              spots: const [
-                                FlSpot(0, 112),
-                                FlSpot(2, 118),
-                                FlSpot(4, 126),
-                                FlSpot(6, 138),
-                                FlSpot(8, 122),
-                                FlSpot(11, 128.4),
-                              ],
-                              isCurved: true,
-                              curveSmoothness: 0.35,
-                              color: AppColors.azulPrimario,
-                              barWidth: 2.2,
-                              dotData: const FlDotData(show: false),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 18),
-
-              // 6. Alertas recientes
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Alertas recientes',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textoPrincipal,
-                    ),
-                  ),
-                  InkWell(
-                    onTap: () => context.push(AppRoutes.alertas),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Ver todas',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.azulPrimario,
-                          ),
-                        ),
-                        Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.azulPrimario),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-
-              ...alertasProv.activas.take(2).map(
-                    (a) => TarjetaAlerta(
-                      titulo: a.titulo,
-                      descripcion: a.descripcion,
-                      severidad: a.severidad,
-                      hora: a.hora,
-                      alPulsar: () => context.push(AppRoutes.alertas),
-                    ),
-                  ),
-
-              const SizedBox(height: 14),
+              const SizedBox(height: 2),
 
               // 7. Botón flotante para nuevo registro si puede editar
               if (puedeEditar) ...[
@@ -524,6 +256,12 @@ class HomeScreen extends StatelessWidget {
       ),
     );
   }
+
+  static String _rutaFormulario(FormatoDiario formato) => switch (formato) {
+        FormatoDiario.fisicoquimico => AppRoutes.fisicoquimicoNuevo,
+        FormatoDiario.medidores => AppRoutes.medidoresNuevo,
+        FormatoDiario.aforo => AppRoutes.caudalNuevo,
+      };
 
   void _mostrarMenuNuevoRegistro(BuildContext context) {
     showModalBottomSheet(

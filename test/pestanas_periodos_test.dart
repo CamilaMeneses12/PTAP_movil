@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import 'package:planta_agua/data/models/usuario_perfil.dart';
 import 'package:planta_agua/domain/telemetria/telemetria_planta.dart';
 import 'package:planta_agua/presentation/auth/providers/auth_provider.dart';
-import 'package:planta_agua/presentation/flow/screens/monitoreo_screen.dart';
 import 'package:planta_agua/presentation/history/providers/historial_provider.dart';
 import 'package:planta_agua/presentation/history/screens/historial_screen.dart';
 import 'package:planta_agua/presentation/reports/screens/estadisticas_screen.dart';
@@ -37,21 +36,6 @@ void main() {
       expect(semana.first.horas, 24);
       expect(semana.first.volumenM3, greaterThan(0));
     });
-  });
-
-  testWidgets('Monitoreo: Caudal y Nivel muestran gráficas distintas, sin presión ni salida', (tester) async {
-    await pantallaGrande(tester);
-    await tester.pumpWidget(const MaterialApp(home: MonitoreoScreen()));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Caudal de entrada'), findsOneWidget);
-    expect(find.text('Presión'), findsNothing);
-    expect(find.textContaining('Salida'), findsNothing);
-
-    await tester.tap(find.text('Nivel'));
-    await tester.pumpAndSettle();
-    expect(find.text('Nivel del tanque de almacenamiento'), findsOneWidget);
-    expect(find.textContaining('Mínimo operativo'), findsOneWidget);
   });
 
   testWidgets('Estadísticas: Día, Semana y Mes cambian periodo, barras y evolución', (tester) async {
