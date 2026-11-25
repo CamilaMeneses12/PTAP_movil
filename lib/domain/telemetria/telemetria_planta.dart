@@ -1,27 +1,22 @@
 import 'dart:math' as math;
 import '../validators/validador_rangos.dart';
 
-/// Lectura horaria de la planta: caudales, presión de red y nivel del tanque.
+/// Lectura horaria de la planta: caudal de entrada y nivel del tanque.
 class MuestraTelemetria {
   final DateTime hora;
   final double caudalEntrada; // L/s
-  final double caudalSalida; // L/s
-  final double presion; // bar
   final double nivelTanque; // %
 
   const MuestraTelemetria({
     required this.hora,
     required this.caudalEntrada,
-    required this.caudalSalida,
-    required this.presion,
     required this.nivelTanque,
   });
 
-  /// Volumen tratado (entregado a la red) durante esa hora, en m³.
-  double get volumenM3 => caudalSalida * 3.6;
+  /// Volumen captado (entrada a la planta) durante esa hora, en m³.
+  double get volumenM3 => caudalEntrada * 3.6;
 
   bool get caudalFueraDeRango => !ValidadorRangos.validarCaudalEntrada(caudalEntrada).cumple;
-  bool get presionFueraDeRango => !ValidadorRangos.validarPresionRed(presion).cumple;
   bool get nivelFueraDeRango => !ValidadorRangos.validarNivelTanque(nivelTanque).cumple;
 }
 
@@ -39,15 +34,7 @@ class ResumenPeriodo {
       muestras.isEmpty ? 0 : muestras.map(f).reduce((a, b) => a + b) / muestras.length;
 
   double get entradaPromedio => _promedio((m) => m.caudalEntrada);
-  double get salidaPromedio => _promedio((m) => m.caudalSalida);
   double get volumenM3 => muestras.fold(0.0, (s, m) => s + m.volumenM3);
-
-  /// Porcentaje del agua captada que se entregó tratada a la red.
-  double get eficiencia {
-    final entrada = muestras.fold(0.0, (s, m) => s + m.caudalEntrada);
-    if (entrada == 0) return 0;
-    return muestras.fold(0.0, (s, m) => s + m.caudalSalida) / entrada * 100;
-  }
 
   List<MuestraTelemetria> get horasFueraDeRango => muestras.where((m) => m.caudalFueraDeRango).toList();
 }
@@ -84,10 +71,6 @@ class TelemetriaPlanta {
     final eventoCaudal = r.nextInt(70);
     if (eventoCaudal == 0) entrada += 17; // pico de captación (fuera de rango por arriba)
     if (eventoCaudal == 1) entrada -= 15; // caída de captación (fuera de rango por abajo)
-    final salida = entrada * (0.948 + r.nextDouble() * 0.012);
-
-    var presion = 3.35 - 0.38 * ciclo(7) + ruido(0.16);
-    if (r.nextInt(90) == 0) presion -= 0.75;
 
     var nivel = 72 + 14 * ciclo(4) + ruido(3);
     if (r.nextInt(150) == 0) nivel = 34 + r.nextDouble() * 4;
@@ -95,8 +78,6 @@ class TelemetriaPlanta {
     return MuestraTelemetria(
       hora: h,
       caudalEntrada: double.parse(entrada.toStringAsFixed(1)),
-      caudalSalida: double.parse(salida.toStringAsFixed(1)),
-      presion: double.parse(presion.toStringAsFixed(2)),
       nivelTanque: double.parse(nivel.clamp(0, 100).toStringAsFixed(1)),
     );
   }

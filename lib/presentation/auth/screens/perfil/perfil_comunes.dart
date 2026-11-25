@@ -290,10 +290,6 @@ IconData _iconoUmbral(UmbralAlerta u) {
   switch (u.parametro) {
     case 'caudal_entrada':
       return Icons.arrow_downward_rounded;
-    case 'caudal_salida':
-      return Icons.arrow_upward_rounded;
-    case 'presion_red':
-      return Icons.speed_rounded;
     case 'nivel_tanque':
       return Icons.storage_rounded;
     case 'ph':

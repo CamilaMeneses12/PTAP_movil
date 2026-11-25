@@ -155,16 +155,10 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
   Widget build(BuildContext context) {
     final ahora = DateTime.now();
     final inicio = _inicioPeriodo(_referencia);
-    final fin = _finPeriodo(inicio);
     final barras = _barras(inicio, ahora);
     final conDatos = barras.where((b) => b.valor != null).toList();
     final total = conDatos.fold(0.0, (s, b) => s + b.valor!);
     final promedio = conDatos.isEmpty ? 0.0 : total / conDatos.length;
-    final eficiencia = TelemetriaPlanta.resumenRango(
-      inicio,
-      fin,
-      ahora: ahora,
-    ).eficiencia;
 
     // Periodo anterior, recortado a la misma cantidad de horas/días con datos
     final inicioAnterior = _inicioPeriodo(_desplazar(inicio, -1));
@@ -176,12 +170,6 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
     final promedioAnterior = barrasAnteriores.isEmpty
         ? 0.0
         : totalAnterior / barrasAnteriores.length;
-    final finAnterior = _finPeriodo(inicioAnterior);
-    final eficienciaAnterior = TelemetriaPlanta.resumenRango(
-      inicioAnterior,
-      finAnterior,
-      ahora: ahora,
-    ).eficiencia;
 
     final puedeAvanzar = !_finPeriodo(inicio).isAfter(ahora);
     final unidad = _filtroTemporal == 0 ? 'hora' : 'día';
@@ -352,18 +340,6 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
                     variacion: _variacion(promedio, promedioAnterior),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _MiniCardKpi(
-                    titulo: 'Eficiencia',
-                    valor: _f1.format(eficiencia),
-                    unidad: '%',
-                    variacion: eficienciaAnterior == 0
-                        ? null
-                        : eficiencia - eficienciaAnterior,
-                    esPuntos: true,
-                  ),
-                ),
               ],
             ),
 
@@ -458,8 +434,8 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
           const SizedBox(height: 4),
           Text(
             _filtroTemporal == 0
-                ? 'Volumen tratado por hora · m³'
-                : 'Volumen tratado por día · m³',
+                ? 'Volumen captado por hora · m³'
+                : 'Volumen captado por día · m³',
             style: const TextStyle(
               fontSize: 11,
               color: AppColors.textoSecundario,
@@ -617,7 +593,7 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
     final esDia = _filtroTemporal == 0;
     final titulo = esDia
         ? 'Caudal de entrada durante el día'
-        : 'Evolución del volumen tratado';
+        : 'Evolución del volumen captado';
     final subtitulo = switch (_filtroTemporal) {
       0 => 'Hora a hora · L/s',
       1 => 'Últimas 8 semanas · promedio m³/día',
@@ -812,16 +788,14 @@ class _MiniCardKpi extends StatelessWidget {
   final String valor;
   final String unidad;
 
-  /// Variación frente al periodo anterior (% o puntos porcentuales); null si no hay con qué comparar.
+  /// Variación porcentual frente al periodo anterior; null si no hay con qué comparar.
   final double? variacion;
-  final bool esPuntos;
 
   const _MiniCardKpi({
     required this.titulo,
     required this.valor,
     required this.unidad,
     required this.variacion,
-    this.esPuntos = false,
   });
 
   @override
@@ -876,7 +850,7 @@ class _MiniCardKpi extends StatelessWidget {
           Text(
             variacion == null
                 ? 'Sin comparación'
-                : '${variacion! >= 0 ? '+' : ''}${NumberFormat('#,##0.0', 'es_CO').format(variacion)}${esPuntos ? ' pts' : ' %'}',
+                : '${variacion! >= 0 ? '+' : ''}${NumberFormat('#,##0.0', 'es_CO').format(variacion)} %',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(

@@ -146,11 +146,6 @@ class ValidadorRangos {
   // 3. Hidráulica y Red (Operación de Planta PTAP SENA)
   static double caudalEntradaMin = 110.0; // L/s
   static double caudalEntradaMax = 140.0; // L/s
-  static double caudalSalidaMin = 105.0;  // L/s
-  static double caudalSalidaMax = 135.0;  // L/s
-  static double presionRedMin = 2.8;      // bar
-  static double presionRedMax = 4.0;      // bar
-  static double presionRedCritica = 4.2;  // bar
   static double nivelTanqueMin = 40.0;    // %
   static const double nivelTanqueCritico = 20.0;// %
 
@@ -362,59 +357,6 @@ class ValidadorRangos {
       );
     }
     return EvaluacionRango.correcto('L/s', valor: valor, min: caudalEntradaMin, max: caudalEntradaMax);
-  }
-
-  /// Valida Caudal de Salida hacia la Red (105 - 135 L/s)
-  static EvaluacionRango validarCaudalSalida(double? valor) {
-    if (valor == null) return EvaluacionRango.correcto('L/s');
-    if (valor <= 0) {
-      return EvaluacionRango.invalido(
-        parametro: 'Caudal de Salida',
-        motivo: 'El caudal debe ser estrictamente mayor a 0 L/s.',
-        unidad: 'L/s',
-        valor: valor,
-      );
-    }
-    if (valor < caudalSalidaMin || valor > caudalSalidaMax) {
-      return EvaluacionRango.fueraDeRango(
-        parametro: 'Caudal de salida',
-        valor: valor,
-        minimo: caudalSalidaMin,
-        maximo: caudalSalidaMax,
-        unidad: 'L/s',
-        severidad: 'advertencia',
-        explicacion:
-            'Puede superar la capacidad de tratamiento / indicar falla en la captación.',
-      );
-    }
-    return EvaluacionRango.correcto('L/s', valor: valor, min: caudalSalidaMin, max: caudalSalidaMax);
-  }
-
-  /// Valida Presión de Red de Impulsión (2.8 - 4.0 bar)
-  static EvaluacionRango validarPresionRed(double? valor) {
-    if (valor == null) return EvaluacionRango.correcto('bar');
-    if (valor < 0) {
-      return EvaluacionRango.invalido(
-        parametro: 'Presión de red',
-        motivo: 'La presión manométrica no puede ser negativa.',
-        unidad: 'bar',
-        valor: valor,
-      );
-    }
-    if (valor < presionRedMin || valor > presionRedMax) {
-      final esCritica = valor > presionRedCritica;
-      return EvaluacionRango.fueraDeRango(
-        parametro: 'Presión de red',
-        valor: valor,
-        minimo: presionRedMin,
-        maximo: presionRedMax,
-        unidad: 'bar',
-        severidad: esCritica ? 'critica' : 'advertencia',
-        explicacion:
-            'Riesgo de fugas o rotura de tubería / suministro insuficiente en la red.',
-      );
-    }
-    return EvaluacionRango.correcto('bar', valor: valor, min: presionRedMin, max: presionRedMax);
   }
 
   /// Valida Nivel de Almacenamiento en Tanque (Mínimo 40%)

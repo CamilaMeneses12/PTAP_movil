@@ -17,8 +17,6 @@ class UmbralesRepository {
   /// Valores por defecto, en el orden en que se muestran en el Perfil.
   static List<UmbralAlerta> predeterminados() => const [
         UmbralAlerta(seccion: 'operacion', parametro: 'caudal_entrada', nombre: 'Caudal de entrada', unidad: 'L/s', minimo: 110, maximo: 140),
-        UmbralAlerta(seccion: 'operacion', parametro: 'caudal_salida', nombre: 'Caudal de salida', unidad: 'L/s', minimo: 105, maximo: 135),
-        UmbralAlerta(seccion: 'operacion', parametro: 'presion_red', nombre: 'Presión de red', unidad: 'bar', minimo: 2.8, maximo: 4.0),
         UmbralAlerta(seccion: 'operacion', parametro: 'nivel_tanque', nombre: 'Nivel mínimo de tanque', unidad: '%', minimo: 40),
         UmbralAlerta(seccion: 'agua_cruda', parametro: 'ph', nombre: 'pH agua cruda', unidad: 'pH', minimo: 5.0, maximo: 9.0),
         UmbralAlerta(seccion: 'agua_cruda', parametro: 'turbidez', nombre: 'Turbidez agua cruda', unidad: 'UJT', minimo: 0, maximo: 10),
@@ -82,12 +80,6 @@ class UmbralesRepository {
         case 'operacion.caudal_entrada':
           if (u.minimo != null) ValidadorRangos.caudalEntradaMin = u.minimo!;
           if (u.maximo != null) ValidadorRangos.caudalEntradaMax = u.maximo!;
-        case 'operacion.caudal_salida':
-          if (u.minimo != null) ValidadorRangos.caudalSalidaMin = u.minimo!;
-          if (u.maximo != null) ValidadorRangos.caudalSalidaMax = u.maximo!;
-        case 'operacion.presion_red':
-          if (u.minimo != null) ValidadorRangos.presionRedMin = u.minimo!;
-          if (u.maximo != null) ValidadorRangos.presionRedMax = u.maximo!;
         case 'operacion.nivel_tanque':
           if (u.minimo != null) ValidadorRangos.nivelTanqueMin = u.minimo!;
         case 'agua_cruda.ph':

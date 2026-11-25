@@ -26,7 +26,7 @@ void main() {
       // Title & Tabs
       expect(find.text('Alertas'), findsWidgets);
       expect(find.text('Marcar leídas'), findsOneWidget);
-      expect(find.text('Activas (3)'), findsOneWidget);
+      expect(find.text('Activas (2)'), findsOneWidget);
       expect(find.text('Historial'), findsOneWidget);
 
       // Counters (1 Crítica, 2 Advertencias, 2 Informativas)

@@ -25,7 +25,6 @@ void main() {
       final a = TelemetriaPlanta.muestra(t);
       final b = TelemetriaPlanta.muestra(t.add(const Duration(minutes: 37)));
       expect(a.caudalEntrada, b.caudalEntrada);
-      expect(a.presion, b.presion);
       expect(a.nivelTanque, b.nivelTanque);
     });
 
@@ -40,18 +39,14 @@ void main() {
     });
   });
 
-  testWidgets('Monitoreo: Caudal, Presión y Nivel muestran gráficas distintas', (tester) async {
+  testWidgets('Monitoreo: Caudal y Nivel muestran gráficas distintas, sin presión ni salida', (tester) async {
     await pantallaGrande(tester);
     await tester.pumpWidget(const MaterialApp(home: MonitoreoScreen()));
     await tester.pumpAndSettle();
 
-    expect(find.text('Caudal de entrada vs. salida'), findsOneWidget);
-    expect(find.text('Presión de la red de distribución'), findsNothing);
-
-    await tester.tap(find.text('Presión'));
-    await tester.pumpAndSettle();
-    expect(find.text('Presión de la red de distribución'), findsOneWidget);
-    expect(find.text('Caudal de entrada vs. salida'), findsNothing);
+    expect(find.text('Caudal de entrada'), findsOneWidget);
+    expect(find.text('Presión'), findsNothing);
+    expect(find.textContaining('Salida'), findsNothing);
 
     await tester.tap(find.text('Nivel'));
     await tester.pumpAndSettle();

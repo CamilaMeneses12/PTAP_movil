@@ -4,15 +4,13 @@
 -- Es seguro ejecutarla de nuevo: todo usa "if not exists" / "on conflict".
 -- ==============================================================================
 
--- 1. UMBRALES OPERATIVOS (caudal, presión, nivel) editables desde el Perfil del administrador
+-- 1. UMBRALES OPERATIVOS (caudal de entrada, nivel) editables desde el Perfil del administrador
 alter table public.rangos_parametros drop constraint if exists rangos_parametros_seccion_check;
 alter table public.rangos_parametros add constraint rangos_parametros_seccion_check
     check (seccion in ('agua_cruda', 'agua_filtrada', 'agua_clorada', 'puntos_control', 'operacion'));
 
 insert into public.rangos_parametros (seccion, parametro, nombre_visible, unidad, valor_minimo, valor_maximo, norma_referencia) values
     ('operacion', 'caudal_entrada', 'Caudal de entrada', 'L/s', 110.0, 140.0, 'Control operativo PTAP'),
-    ('operacion', 'caudal_salida', 'Caudal de salida', 'L/s', 105.0, 135.0, 'Control operativo PTAP'),
-    ('operacion', 'presion_red', 'Presión de red', 'bar', 2.8, 4.0, 'Control operativo PTAP'),
     ('operacion', 'nivel_tanque', 'Nivel mínimo de tanque', '%', 40.0, null, 'Control operativo PTAP')
 on conflict (seccion, parametro) do nothing;
 

@@ -86,7 +86,6 @@ class _HistorialScreenState extends State<HistorialScreen> {
       fecha: _fecha.format(m.hora),
       hora: DateFormat('HH:00').format(m.hora),
       entrada: m.caudalEntrada,
-      salida: m.caudalSalida,
       volumen: m.volumenM3,
       fueraDeRango: !evaluacion.cumple,
       motivo: evaluacion.cumple ? null : evaluacion.mensajeCompleto,
@@ -113,7 +112,6 @@ class _HistorialScreenState extends State<HistorialScreen> {
       fecha: _fecha.format(dia.inicio),
       hora: esHoy ? 'Hasta ${DateFormat('HH:00').format(ahora)}' : 'Prom. día',
       entrada: dia.entradaPromedio,
-      salida: dia.salidaPromedio,
       volumen: dia.volumenM3,
       fueraDeRango: fuera.isNotEmpty,
       motivo: motivo,
@@ -500,19 +498,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                   Expanded(
                     flex: 2,
                     child: Text(
-                      'Salida\n(L/s)',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textoSecundario,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      'Volumen\n(m³)',
+                      'Vol. captado\n(m³)',
                       textAlign: TextAlign.right,
                       style: TextStyle(
                         fontSize: 10,
@@ -551,7 +537,6 @@ class _HistorialScreenState extends State<HistorialScreen> {
                           fecha: reg.fecha,
                           hora: reg.hora,
                           entrada: _f1.format(reg.entrada),
-                          salida: _f1.format(reg.salida),
                           volumen: _f1.format(reg.volumen),
                           fueraDeRango: reg.fueraDeRango,
                           mensajeExplicativo: reg.motivo,
@@ -826,7 +811,6 @@ class _FilaCaudal {
   final String fecha;
   final String hora;
   final double entrada;
-  final double salida;
   final double volumen;
   final bool fueraDeRango;
   final String? motivo;
@@ -835,7 +819,6 @@ class _FilaCaudal {
     required this.fecha,
     required this.hora,
     required this.entrada,
-    required this.salida,
     required this.volumen,
     required this.fueraDeRango,
     required this.motivo,

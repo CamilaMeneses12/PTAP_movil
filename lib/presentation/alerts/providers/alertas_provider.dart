@@ -28,18 +28,6 @@ class AlertasProvider with ChangeNotifier {
       rangoEsperado: 'mín. 40%',
       grupoFecha: 'HOY',
     ),
-    AlertaSistema(
-      id: 'alt-03',
-      titulo: 'Posible anomalía de presión',
-      descripcion: 'Variación de >0,6 bar en 10 min en la línea de impulsión.',
-      severidad: SeveridadAlerta.advertencia,
-      fechaHora: DateTime.now().subtract(const Duration(minutes: 25)),
-      hora: '09:11',
-      parametro: 'Presión de red',
-      valorRegistrado: 3.4,
-      rangoEsperado: '2,8–4,0 bar',
-      grupoFecha: 'HOY',
-    ),
 
     // Historial AYER (fieles a Figma 05 Alertas)
     AlertaSistema(
@@ -49,17 +37,6 @@ class AlertasProvider with ChangeNotifier {
       severidad: SeveridadAlerta.informacion,
       fechaHora: DateTime.now().subtract(const Duration(days: 1, hours: 2)),
       hora: '06:20',
-      resuelta: true,
-      leida: true,
-      grupoFecha: 'AYER',
-    ),
-    AlertaSistema(
-      id: 'alt-05',
-      titulo: 'Calibración de caudalímetro',
-      descripcion: 'Caudalímetro de salida calibrado. Error de medición ±0,1%.',
-      severidad: SeveridadAlerta.informacion,
-      fechaHora: DateTime.now().subtract(const Duration(days: 1, hours: 5)),
-      hora: '04:15',
       resuelta: true,
       leida: true,
       grupoFecha: 'AYER',

@@ -116,7 +116,8 @@ void main() {
   group('Umbrales de alerta', () {
     test('Texto del rango con coma decimal', () {
       final u = UmbralesRepository.predeterminados();
-      expect(u.firstWhere((e) => e.parametro == 'presion_red').rangoTexto, '2,8–4 bar');
+      expect(u.firstWhere((e) => e.parametro == 'caudal_entrada').rangoTexto, '110–140 L/s');
+      expect(u.any((e) => e.parametro == 'presion_red' || e.parametro == 'caudal_salida'), isFalse);
       expect(u.firstWhere((e) => e.parametro == 'nivel_tanque').rangoTexto, 'mín. 40 %');
       expect(u.firstWhere((e) => e.clave == 'agua_clorada.turbidez').rangoTexto, 'máx. 2 NTU');
     });

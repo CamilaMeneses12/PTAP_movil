@@ -218,23 +218,6 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: TarjetaKpi(
-                      titulo: 'Caudal de salida',
-                      valor: '122,7',
-                      unidad: 'L/s',
-                      icono: Icons.arrow_upward_rounded,
-                      variacion: '+1,6 %',
-                      variacionPositiva: true,
-                      notaRango: 'Rango 105–135 L/s',
-                      alPulsar: () => alCambiarPestana?.call(1),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: TarjetaKpi(
                       titulo: 'Volumen tratado hoy',
                       valor: '4.286',
                       unidad: 'm³',
@@ -243,17 +226,6 @@ class HomeScreen extends StatelessWidget {
                       variacionPositiva: true,
                       notaRango: 'Meta 4.000 m³/día',
                       alPulsar: () => alCambiarPestana?.call(2),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TarjetaKpi(
-                      titulo: 'Presión de red',
-                      valor: '3,4',
-                      unidad: 'bar',
-                      icono: Icons.speed_rounded,
-                      notaRango: 'Rango 2,8–4,0 bar',
-                      alPulsar: () => alCambiarPestana?.call(1),
                     ),
                   ),
                 ],
@@ -366,7 +338,7 @@ class HomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 10),
 
-              // Gráfica de Líneas Entrada vs Salida
+              // Gráfica de Líneas del caudal de entrada
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -382,10 +354,6 @@ class HomeScreen extends StatelessWidget {
                         Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppColors.azulPrimario, shape: BoxShape.circle)),
                         const SizedBox(width: 4),
                         const Text('Entrada', style: TextStyle(fontSize: 11, color: AppColors.textoSecundario)),
-                        const SizedBox(width: 14),
-                        Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppColors.turquesa, shape: BoxShape.circle)),
-                        const SizedBox(width: 4),
-                        const Text('Salida', style: TextStyle(fontSize: 11, color: AppColors.textoSecundario)),
                       ],
                     ),
                     const SizedBox(height: 14),
@@ -438,21 +406,6 @@ class HomeScreen extends StatelessWidget {
                               isCurved: true,
                               curveSmoothness: 0.35,
                               color: AppColors.azulPrimario,
-                              barWidth: 2.2,
-                              dotData: const FlDotData(show: false),
-                            ),
-                            LineChartBarData(
-                              spots: const [
-                                FlSpot(0, 108),
-                                FlSpot(2, 114),
-                                FlSpot(4, 120),
-                                FlSpot(6, 131),
-                                FlSpot(8, 117),
-                                FlSpot(11, 122.7),
-                              ],
-                              isCurved: true,
-                              curveSmoothness: 0.35,
-                              color: AppColors.turquesa,
                               barWidth: 2.2,
                               dotData: const FlDotData(show: false),
                             ),

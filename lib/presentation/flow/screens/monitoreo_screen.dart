@@ -16,7 +16,7 @@ class MonitoreoScreen extends StatefulWidget {
   State<MonitoreoScreen> createState() => _MonitoreoScreenState();
 }
 
-/// Configuración de la gráfica de cada pestaña (Caudal, Presión, Nivel).
+/// Configuración de la gráfica de cada pestaña (Caudal, Nivel).
 class _SerieGrafica {
   final String nombre;
   final Color color;
@@ -51,7 +51,7 @@ class _VistaMonitoreo {
 }
 
 class _MonitoreoScreenState extends State<MonitoreoScreen> {
-  int _indiceSubpestana = 0; // 0: Caudal, 1: Presión, 2: Nivel
+  int _indiceSubpestana = 0; // 0: Caudal, 1: Nivel
 
   static final _f1 = NumberFormat('#,##0.0', 'es_CO');
   static final _f2 = NumberFormat('#,##0.00', 'es_CO');
@@ -67,24 +67,6 @@ class _MonitoreoScreenState extends State<MonitoreoScreen> {
     final actual = horas.last;
     switch (_indiceSubpestana) {
       case 1:
-        return _VistaMonitoreo(
-          titulo: 'Presión de la red de distribución',
-          unidad: 'bar',
-          series: [
-            _SerieGrafica('Presión', AppColors.azulPrimario, [
-              for (final h in horas) h.presion,
-            ]),
-          ],
-          minimo: ValidadorRangos.presionRedMin,
-          maximo: ValidadorRangos.presionRedMax,
-          textoRango:
-              'Rango ${_f1.format(ValidadorRangos.presionRedMin)}–${_f1.format(ValidadorRangos.presionRedMax)} bar',
-          detalle: actual.presionFueraDeRango
-              ? 'Presión actual fuera del rango operativo'
-              : 'Presión actual dentro del rango operativo',
-          decimales: 2,
-        );
-      case 2:
         final volumen =
             actual.nivelTanque / 100 * TelemetriaPlanta.capacidadTanqueM3;
         return _VistaMonitoreo(
@@ -104,26 +86,21 @@ class _MonitoreoScreenState extends State<MonitoreoScreen> {
           decimales: 1,
         );
       default:
-        final dif = actual.caudalEntrada - actual.caudalSalida;
-        final pct = actual.caudalEntrada == 0
-            ? 0
-            : dif / actual.caudalEntrada * 100;
         return _VistaMonitoreo(
-          titulo: 'Caudal de entrada vs. salida',
+          titulo: 'Caudal de entrada',
           unidad: 'L/s',
           series: [
             _SerieGrafica('Entrada', AppColors.azulPrimario, [
               for (final h in horas) h.caudalEntrada,
-            ]),
-            _SerieGrafica('Salida', AppColors.turquesa, [
-              for (final h in horas) h.caudalSalida,
             ]),
           ],
           minimo: ValidadorRangos.caudalEntradaMin,
           maximo: ValidadorRangos.caudalEntradaMax,
           textoRango:
               'Rango ${_f0.format(ValidadorRangos.caudalEntradaMin)}–${_f0.format(ValidadorRangos.caudalEntradaMax)} L/s',
-          detalle: 'Diferencia: ${_f1.format(dif)} L/s (${_f1.format(pct)} %)',
+          detalle: actual.caudalFueraDeRango
+              ? 'Caudal actual fuera del rango operativo'
+              : 'Caudal actual dentro del rango operativo',
           decimales: 1,
         );
     }
@@ -197,7 +174,7 @@ class _MonitoreoScreenState extends State<MonitoreoScreen> {
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           children: [
-            // Segmented control: Caudal | Presión | Nivel
+            // Segmented control: Caudal | Nivel
             Container(
               height: 38,
               padding: const EdgeInsets.all(3),
@@ -213,14 +190,9 @@ class _MonitoreoScreenState extends State<MonitoreoScreen> {
                     alPulsar: () => setState(() => _indiceSubpestana = 0),
                   ),
                   _SegmentButton(
-                    texto: 'Presión',
+                    texto: 'Nivel',
                     seleccionado: _indiceSubpestana == 1,
                     alPulsar: () => setState(() => _indiceSubpestana = 1),
-                  ),
-                  _SegmentButton(
-                    texto: 'Nivel',
-                    seleccionado: _indiceSubpestana == 2,
-                    alPulsar: () => setState(() => _indiceSubpestana = 2),
                   ),
                 ],
               ),
@@ -288,22 +260,12 @@ class _MonitoreoScreenState extends State<MonitoreoScreen> {
 
             const SizedBox(height: 16),
 
-            // Fila de medidores y gauges (Presión de red + Nivel de tanque)
-            Row(
-              children: [
-                Expanded(child: _MedidorPresion(valorPresion: actual.presion)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _MedidorNivelTanque(
-                    porcentaje: actual.nivelTanque.round(),
-                    volumenM3:
-                        (actual.nivelTanque /
-                                100 *
-                                TelemetriaPlanta.capacidadTanqueM3)
-                            .round(),
-                  ),
-                ),
-              ],
+            // Medidor del nivel del tanque
+            _MedidorNivelTanque(
+              porcentaje: actual.nivelTanque.round(),
+              volumenM3:
+                  (actual.nivelTanque / 100 * TelemetriaPlanta.capacidadTanqueM3)
+                      .round(),
             ),
 
             const SizedBox(height: 24),
@@ -753,82 +715,6 @@ class _ItemEtapaProceso extends StatelessWidget {
   }
 }
 
-class _MedidorPresion extends StatelessWidget {
-  final double valorPresion;
-
-  const _MedidorPresion({required this.valorPresion});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.blanco,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.bordes, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(
-                Icons.speed_rounded,
-                size: 16,
-                color: AppColors.azulPrimario,
-              ),
-              SizedBox(width: 6),
-              Text(
-                'Presión de red',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textoPrincipal,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Center(
-            child: SizedBox(
-              width: 80,
-              height: 50,
-              child: CustomPaint(
-                painter: _ArcoGaugePainter(
-                  valor: valorPresion,
-                  min: 0,
-                  max: 6,
-                  color: AppColors.turquesa,
-                ),
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 14),
-                    child: Text(
-                      '${valorPresion.toString().replaceAll('.', ',')} bar',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textoPrincipal,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Center(
-            child: Text(
-              'Rango 2,8–4,0 bar',
-              style: TextStyle(fontSize: 10, color: AppColors.textoSecundario),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _MedidorNivelTanque extends StatelessWidget {
   final int porcentaje;
   final int volumenM3;
@@ -920,56 +806,4 @@ class _MedidorNivelTanque extends StatelessWidget {
       ),
     );
   }
-}
-
-class _ArcoGaugePainter extends CustomPainter {
-  final double valor;
-  final double min;
-  final double max;
-  final Color color;
-
-  _ArcoGaugePainter({
-    required this.valor,
-    required this.min,
-    required this.max,
-    required this.color,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height);
-    final radius = size.width / 2;
-
-    final backgroundPaint = Paint()
-      ..color = AppColors.bordes
-      ..strokeWidth = 6
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      math.pi,
-      math.pi,
-      false,
-      backgroundPaint,
-    );
-
-    final porcentaje = ((valor - min) / (max - min)).clamp(0.0, 1.0);
-    final activePaint = Paint()
-      ..color = color
-      ..strokeWidth = 6
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      math.pi,
-      math.pi * porcentaje,
-      false,
-      activePaint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

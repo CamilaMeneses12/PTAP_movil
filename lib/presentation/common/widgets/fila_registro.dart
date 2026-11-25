@@ -5,7 +5,6 @@ class FilaRegistro extends StatelessWidget {
   final String fecha;
   final String hora;
   final String entrada;
-  final String salida;
   final String volumen;
   final bool fueraDeRango;
   final String? mensajeExplicativo;
@@ -16,7 +15,6 @@ class FilaRegistro extends StatelessWidget {
     required this.fecha,
     required this.hora,
     required this.entrada,
-    required this.salida,
     required this.volumen,
     this.fueraDeRango = false,
     this.mensajeExplicativo,
@@ -81,20 +79,6 @@ class FilaRegistro extends StatelessWidget {
                   flex: 2,
                   child: Text(
                     entrada,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: fueraDeRango ? FontWeight.w700 : FontWeight.w500,
-                      color: colorTexto,
-                    ),
-                  ),
-                ),
-
-                // Salida
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    salida,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 12,
