@@ -91,7 +91,8 @@ class AyudaScreen extends StatelessWidget {
             titulo: 'Aforo por Flotador (Quebrada La Seca)',
             contenido: [
               '• Velocidad Superficial: Distancia (L) / Tiempo Promedio (s).',
-              '• Velocidad Media Corregida: Vel. Superficial × Factor K (0.80 - 0.85).',
+              '• Velocidad Media Corregida: Vel. Superficial × Factor de corrección K.',
+              '• Factor K: se ingresa en cada aforo, entre 0,60 y 0,95 (0,80 por defecto). Depende del canal: más liso → K más alto (≈0,85); arenoso o con piedras → K más bajo (≈0,70–0,80).',
               '• Área de la Sección: Ancho Superficial (W) × Profundidad Promedio.',
               '• Caudal (Q): Área × Velocidad Media.',
               '• Conversión a L/s: Q (m³/s) × 1000.',

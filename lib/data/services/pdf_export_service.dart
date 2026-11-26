@@ -301,7 +301,7 @@ class PdfExportService {
             cellPadding: const pw.EdgeInsets.symmetric(horizontal: 2, vertical: 3),
           ),
           pw.SizedBox(height: 10),
-          _construirNotaNormativa('Fórmula del flotador: V_media = (Distancia / T_promedio) * K (donde K = 0.80 - 0.85). Área = Ancho * Prof_promedio. Caudal Q = Área * V_media.'),
+          _construirNotaNormativa('Fórmula del flotador: V_media = (Distancia / T_promedio) * K (K = factor de corrección ingresado en cada aforo, entre 0,60 y 0,95). Área = Ancho * Prof_promedio. Caudal Q = Área * V_media.'),
         ],
       ),
     );

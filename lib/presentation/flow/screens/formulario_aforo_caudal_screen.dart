@@ -38,7 +38,11 @@ class _FormularioAforoCaudalScreenState
   final _t2Controller = TextEditingController(text: '5.66');
   final _t3Controller = TextEditingController(text: '8.59');
   final _t4Controller = TextEditingController(text: '7.03');
+  final _factorController = TextEditingController(text: '0,80');
   final _observacionesController = TextEditingController();
+
+  static final _fVelocidad = NumberFormat('#,##0.0000', 'es_CO');
+  static final _fFactor = NumberFormat('0.00', 'es_CO');
 
   @override
   void dispose() {
@@ -52,6 +56,7 @@ class _FormularioAforoCaudalScreenState
     _t2Controller.dispose();
     _t3Controller.dispose();
     _t4Controller.dispose();
+    _factorController.dispose();
     _observacionesController.dispose();
     super.dispose();
   }
@@ -59,7 +64,15 @@ class _FormularioAforoCaudalScreenState
   double _parse(TextEditingController c) =>
       double.tryParse(c.text.trim().replaceAll(',', '.')) ?? 0.0;
 
+  /// Factor K ingresado; null si está vacío o fuera del rango 0,60–0,95.
+  double? get _factorValido {
+    final k = double.tryParse(_factorController.text.trim().replaceAll(',', '.'));
+    return CalculosCaudal.validarFactorCorreccion(k) == null ? k : null;
+  }
+
   ResultadoCaudal? _calcularCaudalVivo() {
+    final factor = _factorValido;
+    if (factor == null) return null;
     final ancho = _parse(_anchoController);
     final p1 = _parse(_p1Controller);
     final p2 = _parse(_p2Controller);
@@ -87,6 +100,7 @@ class _FormularioAforoCaudalScreenState
         tiempo2S: t2,
         tiempo3S: t3,
         tiempo4S: t4,
+        factorCorreccion: factor,
       );
     } catch (_) {
       return null;
@@ -100,7 +114,7 @@ class _FormularioAforoCaudalScreenState
     if (resultado == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Verifique los valores de ancho, distancia y tiempos ingresados (deben ser > 0).'),
+          content: Text('Verifique el ancho, la distancia, los tiempos (> 0) y el factor K (0,60 a 0,95).'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -186,7 +200,7 @@ class _FormularioAforoCaudalScreenState
       tiempo2S: _parse(_t2Controller),
       tiempo3S: _parse(_t3Controller),
       tiempo4S: _parse(_t4Controller),
-      factorCorreccion: 0.80,
+      factorCorreccion: _factorValido!,
       profundidadPromedioM: resultado.profundidadPromedioM,
       areaSeccionM2: resultado.areaSeccionM2,
       tiempoPromedioS: resultado.tiempoPromedioS,
@@ -380,13 +394,24 @@ class _FormularioAforoCaudalScreenState
                             color: AppColors.textoSecundario,
                           ),
                           _DatoCalculado(
-                            titulo: 'Velocidad Corr.',
+                            titulo: 'Velocidad superficial',
                             valor: resultado != null
-                                ? '${resultado.velocidadCorregidaMS.toStringAsFixed(4)} m/s'
-                                : '0.00 m/s',
+                                ? '${_fVelocidad.format(resultado.velocidadSuperficialMS)} m/s'
+                                : '0,0000 m/s',
                             color: AppColors.textoSecundario,
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 10),
+                      _DatoCalculado(
+                        key: const Key('velocidad_corregida'),
+                        titulo: _factorValido == null
+                            ? 'Velocidad corregida = velocidad superficial × K'
+                            : 'Velocidad corregida = velocidad superficial × K (K = ${_fFactor.format(_factorValido)})',
+                        valor: resultado != null
+                            ? '${_fVelocidad.format(resultado.velocidadCorregidaMS)} m/s'
+                            : (_factorValido == null ? 'Ingrese un K entre 0,60 y 0,95' : '0,0000 m/s'),
+                        color: AppColors.textoSecundario,
                       ),
                       if (resultado != null &&
                           (resultado.caudalLS < 10.0 || resultado.caudalLS > 140.0)) ...[
@@ -578,6 +603,23 @@ class _FormularioAforoCaudalScreenState
                           ),
                         ],
                       ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        key: const Key('campo_factor_k'),
+                        controller: _factorController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(
+                          labelText: 'Factor de corrección (K)',
+                          helperText:
+                              'Depende del canal: más liso → K más alto (≈0,85); arenoso o con piedras → K más bajo (≈0,70–0,80)',
+                          helperMaxLines: 3,
+                        ),
+                        validator: (v) => CalculosCaudal.validarFactorCorreccion(
+                          double.tryParse((v ?? '').trim().replaceAll(',', '.')),
+                        ),
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                        onChanged: (_) => setState(() {}),
+                      ),
                     ],
                   ),
                 ),
@@ -638,6 +680,7 @@ class _DatoCalculado extends StatelessWidget {
   final bool destacado;
 
   const _DatoCalculado({
+    super.key,
     required this.titulo,
     required this.valor,
     required this.color,
@@ -650,6 +693,7 @@ class _DatoCalculado extends StatelessWidget {
       children: [
         Text(
           titulo,
+          textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 11, color: AppColors.textoSecundario),
         ),
         const SizedBox(height: 2),

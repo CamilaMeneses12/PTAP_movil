@@ -28,6 +28,20 @@ class ResultadoCaudal {
 class CalculosCaudal {
   static const double factorCorreccionDefecto = 0.80;
 
+  /// Rango válido del factor de corrección K del flotador. Depende del canal:
+  /// más liso → K más alto (≈0,85); arenoso o con piedras → K más bajo (≈0,70–0,80).
+  static const double factorCorreccionMin = 0.60;
+  static const double factorCorreccionMax = 0.95;
+
+  /// Devuelve el mensaje de error si K no es válido, o null si está dentro del rango.
+  static String? validarFactorCorreccion(double? k) {
+    if (k == null) return 'Ingrese el factor de corrección K';
+    if (k < factorCorreccionMin || k > factorCorreccionMax) {
+      return 'K debe estar entre 0,60 y 0,95';
+    }
+    return null;
+  }
+
   /// Realiza los cálculos automáticos del aforo por método del flotador.
   ///
   /// Fórmulas del Excel:
@@ -35,7 +49,7 @@ class CalculosCaudal {
   /// - Área sección = ancho * profundidad_promedio
   /// - Tiempo promedio = AVERAGE(t1, t2, t3, t4)
   /// - Velocidad superficial = distancia / tiempo_promedio
-  /// - Velocidad corregida = velocidad_superficial * factor_correccion (0.80)
+  /// - Velocidad corregida = velocidad_superficial * factor_correccion K (0,80 por defecto)
   /// - Caudal (m³/s) = área * velocidad_corregida
   /// - Caudal (m³/h) = caudal_m3_s * 3600
   /// - Caudal (L/s) = caudal_m3_s * 1000
