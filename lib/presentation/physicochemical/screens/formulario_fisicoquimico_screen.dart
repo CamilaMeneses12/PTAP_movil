@@ -10,6 +10,7 @@ import '../../../domain/validators/validador_rangos.dart';
 import '../../alerts/providers/alertas_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../common/widgets/mensaje_fuera_de_rango.dart';
+import '../../help/widgets/boton_ver_norma.dart';
 import '../providers/fisicoquimico_provider.dart';
 
 class FormularioFisicoquimicoScreen extends StatefulWidget {
@@ -461,7 +462,7 @@ class _FormularioFisicoquimicoScreenState
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
+                      const Align(alignment: Alignment.centerRight, child: BotonVerNorma()),
                       Text(
                         'Se permite guardar, pero debe ingresar obligatoriamente una observación al final justificando la novedad.',
                         style: TextStyle(
@@ -712,9 +713,16 @@ class _FormularioFisicoquimicoScreenState
                         ],
                       ),
                       const SizedBox(height: 4),
-                      const Text(
-                        'Res. 2115: pH [6.5 - 9.0] | Turbidez [0.0 - 2.0 NTU]',
-                        style: TextStyle(fontSize: 11, color: AppColors.textoSecundario),
+                      const Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Res. 2115: pH [6.5 - 9.0] | Turbidez [0.0 - 2.0 NTU]',
+                              style: TextStyle(fontSize: 11, color: AppColors.textoSecundario),
+                            ),
+                          ),
+                          BotonVerNorma(),
+                        ],
                       ),
                       const SizedBox(height: 12),
                       Row(

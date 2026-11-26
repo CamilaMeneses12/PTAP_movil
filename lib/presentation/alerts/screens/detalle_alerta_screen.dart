@@ -14,6 +14,7 @@ import '../../../domain/calculations/resumen_inicio.dart';
 import '../../../domain/validators/validador_rangos.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../flow/providers/caudal_provider.dart';
+import '../../help/widgets/boton_ver_norma.dart';
 import '../../meters/providers/medidores_provider.dart';
 import '../../physicochemical/providers/fisicoquimico_provider.dart';
 import '../providers/alertas_provider.dart';
@@ -702,6 +703,8 @@ class _SeccionNorma extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(referencia.detalle, style: const TextStyle(fontSize: 12, color: AppColors.textoSecundario, height: 1.4)),
+        if (referencia.normaId != null)
+          Align(alignment: Alignment.centerLeft, child: BotonVerNorma(normaId: referencia.normaId!)),
       ],
     );
   }

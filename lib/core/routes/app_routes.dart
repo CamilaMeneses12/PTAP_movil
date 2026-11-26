@@ -18,6 +18,7 @@ import '../../presentation/flow/screens/detalle_aforo_caudal_screen.dart';
 import '../../presentation/flow/screens/formulario_aforo_caudal_screen.dart';
 import '../../presentation/flow/screens/monitoreo_screen.dart';
 import '../../presentation/help/screens/ayuda_screen.dart';
+import '../../presentation/help/screens/normatividad_screen.dart';
 import '../../presentation/history/screens/historial_screen.dart';
 import '../../presentation/home/screens/home_screen.dart';
 import '../../presentation/meters/screens/detalle_jornada_medidores_screen.dart';
@@ -78,6 +79,7 @@ class AppRoutes {
   static const String admin = '/admin';
   static const String configuracion = '/configuracion';
   static const String ayuda = '/ayuda';
+  static const String normatividad = '/ayuda/normatividad';
 
   /// Rutas para crear registros: solo operario y administrador.
   static const Set<String> rutasEdicion = {fisicoquimicoNuevo, medidoresNuevo, caudalNuevo};
@@ -300,6 +302,11 @@ class AppRoutes {
           path: ayuda,
           name: 'ayuda',
           builder: (context, state) => const AyudaScreen(),
+        ),
+        GoRoute(
+          path: normatividad,
+          name: 'normatividad',
+          builder: (context, state) => NormatividadScreen(normaId: state.extra as String?),
         ),
       ],
     );

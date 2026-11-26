@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/registro_fisicoquimico.dart';
+import '../../help/widgets/boton_ver_norma.dart';
 
 class DetalleFisicoquimicoScreen extends StatelessWidget {
   final RegistroFisicoquimico registro;
@@ -76,6 +77,7 @@ class DetalleFisicoquimicoScreen extends StatelessWidget {
                             color: AppColors.textoSecundario,
                           ),
                         ),
+                        const Align(alignment: Alignment.centerLeft, child: BotonVerNorma()),
                       ],
                     ),
                   ),

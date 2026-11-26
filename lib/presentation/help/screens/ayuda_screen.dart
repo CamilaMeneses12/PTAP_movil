@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/routes/app_routes.dart';
 
 /// Pantalla de ayuda, manual técnico y normatividad para el operario y auditor
 class AyudaScreen extends StatelessWidget {
@@ -55,6 +56,19 @@ class AyudaScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
+
+          // Normatividad del agua potable
+          Card(
+            child: ListTile(
+              key: const Key('abrir_normatividad'),
+              leading: const Icon(Icons.menu_book_outlined, color: AppColors.azulMarino),
+              title: const Text('Normatividad del agua potable', style: TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: const Text('Decretos y resoluciones que aplican en la PTAP', style: TextStyle(fontSize: 12)),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => context.push(AppRoutes.normatividad),
+            ),
+          ),
+          const SizedBox(height: 14),
 
           // 1. Límites Normativos
           _TarjetaAyuda(

@@ -3,6 +3,7 @@ import '../../data/models/alerta_sistema_modelo.dart';
 import '../../data/models/medidores_modelos.dart';
 import '../../data/models/registro_fisicoquimico.dart';
 import '../calculations/resumen_inicio.dart';
+import '../normatividad/normas_agua.dart';
 import '../validators/validador_rangos.dart';
 
 /// Un valor histórico de un parámetro, tomado de los registros del operario.
@@ -73,7 +74,7 @@ class CatalogoParametrosAlerta {
   static const _res2115 = ReferenciaLimite(
     titulo: 'Resolución 2115 de 2007',
     detalle: 'Características físicas y químicas del agua para consumo humano y frecuencias de control.',
-    normaId: 'res_2115_2007',
+    normaId: NormasAgua.res2115,
   );
 
   // TODO: verificar con la norma la referencia del rango de control del agua cruda.

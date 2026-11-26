@@ -155,6 +155,7 @@ void main() {
     expect(find.textContaining('Desinfección insuficiente'), findsOneWidget);
     expect(find.textContaining('Repetir la medición en 30 min.'), findsOneWidget);
     expect(find.text('Resolución 2115 de 2007'), findsOneWidget);
+    expect(find.text('Ver norma'), findsOneWidget);
 
     // Resolver con nota: queda quién y cuándo.
     await tester.scrollUntilVisible(find.byKey(const Key('marcar_resuelta')), 150,
