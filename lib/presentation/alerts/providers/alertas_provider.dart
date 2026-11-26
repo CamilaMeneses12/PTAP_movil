@@ -1,12 +1,58 @@
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
+import '../../../data/local/almacen_local.dart';
 import '../../../data/models/alerta_sistema_modelo.dart';
 import '../../../domain/validators/validador_rangos.dart';
 
 /// Alertas generadas por los registros del operario (DO-F-070, medidores y aforos).
-/// Se guardan en memoria: no hay una tabla de alertas en Supabase.
+/// Se guardan en el celular (no hay una tabla de alertas en Supabase), así que no se pierden
+/// al cerrar la app ni sin conexión.
 class AlertasProvider with ChangeNotifier {
+  static const _coleccion = 'alertas';
+
   final List<AlertaSistema> _alertas = [];
+  late final Future<void> _carga = _cargar();
+
+  AlertasProvider() {
+    _carga;
+  }
+
+  /// Lee las alertas guardadas y las suma a las que ya se hayan creado en esta sesión.
+  Future<void> _cargar() async {
+    try {
+      final guardadas = await AlmacenLocal.instancia.leerLista(_coleccion);
+      final ids = {for (final a in _alertas) a.id};
+      for (final m in guardadas) {
+        final a = AlertaSistema.fromMap(m);
+        if (!ids.contains(a.id)) _alertas.add(a.copyWith(grupoFecha: _grupo(a.fechaHora)));
+      }
+      _alertas.sort((a, b) => b.fechaHora.compareTo(a.fechaHora));
+      notifyListeners();
+    } catch (e) {
+      debugPrint('No se pudieron leer las alertas guardadas: $e');
+    }
+  }
+
+  static String _grupo(DateTime t) {
+    final hoy = DateTime.now();
+    final dia = DateTime(t.year, t.month, t.day);
+    final diferencia = DateTime(hoy.year, hoy.month, hoy.day).difference(dia).inDays;
+    return diferencia <= 0 ? 'HOY' : (diferencia == 1 ? 'AYER' : 'ANTERIORES');
+  }
+
+  Future<void> _guardar() async {
+    await _carga;
+    await AlmacenLocal.instancia.guardarLista(_coleccion, [for (final a in _alertas) a.toMap()]);
+  }
+
+  @override
+  void notifyListeners() {
+    super.notifyListeners();
+    _guardar();
+  }
+
+  /// Espera a que terminen de leerse las alertas guardadas (pruebas y arranque).
+  Future<void> get listo => _carga;
 
   List<AlertaSistema> get todas => List.unmodifiable(_alertas);
   List<AlertaSistema> get activas => _alertas.where((a) => !a.resuelta).toList();

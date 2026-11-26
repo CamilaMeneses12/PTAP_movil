@@ -1,11 +1,14 @@
 import 'package:flutter/foundation.dart';
 import '../../core/utils/mapa_supabase.dart';
+import '../../core/utils/identificador.dart';
 import '../../core/utils/supabase_config.dart';
+import '../local/cache_sincronizable.dart';
+import '../local/serializacion_local.dart';
 import '../models/registro_fisicoquimico.dart';
 
 /// Repositorio para la gestión del formato DO-F-070 en Supabase
 class FisicoquimicoRepository {
-  // Lista en memoria para modo demo / sin conexión
+  // Registro de ejemplo del formato Excel: solo se muestra cuando Supabase no está configurado.
   final List<RegistroFisicoquimico> _registrosMemoria = [];
 
   FisicoquimicoRepository() {
@@ -82,10 +85,27 @@ class FisicoquimicoRepository {
     ];
   }
 
-  /// Obtiene todos los registros ordenados por fecha descendente
+  CacheSincronizable<RegistroFisicoquimico> get _cache => CacheSincronizable.de<RegistroFisicoquimico>(
+        'fisicoquimicos',
+        aMapa: SerializacionLocal.fisicoquimicoAMapa,
+        deMapa: SerializacionLocal.fisicoquimicoDeMapa,
+        idDe: (r) => r.id,
+      );
+
+  /// true si el último registro guardado quedó en el celular esperando conexión.
+  bool ultimoGuardadoPendiente = false;
+
+  static List<RegistroFisicoquimico> _ordenados(Iterable<RegistroFisicoquimico> lista) => lista.toList()
+    ..sort((a, b) {
+      final f = b.fecha.compareTo(a.fecha);
+      return f != 0 ? f : b.hora.compareTo(a.hora);
+    });
+
+  /// Obtiene todos los registros ordenados por fecha descendente.
+  /// Sin conexión devuelve la última copia guardada en el celular más lo pendiente de subir.
   Future<List<RegistroFisicoquimico>> obtenerRegistros() async {
     if (!SupabaseConfig.estaInicializado) {
-      return List.unmodifiable(_registrosMemoria);
+      return _ordenados([...await _cache.todos(), ..._registrosMemoria]);
     }
 
     try {
@@ -103,53 +123,80 @@ class FisicoquimicoRepository {
         return RegistroFisicoquimico.fromMap(mapa, puntos: puntos);
       }).toList();
 
-      return lista;
+      await _cache.reemplazarSincronizados(lista);
     } catch (e) {
-      debugPrint('Error al obtener registros de Supabase, usando memoria: $e');
-      return List.unmodifiable(_registrosMemoria);
+      debugPrint('Sin conexión con Supabase, se muestran los registros guardados en el celular: $e');
+    }
+    return _ordenados(await _cache.todos());
+  }
+
+  /// Guarda primero en el celular y luego intenta subirlo. Sin conexión queda pendiente
+  /// y se sube después (ver [subirPendientes]). Nunca se pierde el registro.
+  Future<bool> guardarRegistro(RegistroFisicoquimico registro) async {
+    // Cada punto de control lleva su propio id para que un reintento no lo duplique.
+    final mapa = SerializacionLocal.fisicoquimicoAMapa(registro);
+    for (final p in (mapa['puntos'] as List).cast<Map<String, dynamic>>()) {
+      p['id'] ??= generarUuid();
+    }
+    final reg = SerializacionLocal.fisicoquimicoDeMapa(mapa);
+
+    await _cache.agregarPendiente(reg);
+    ultimoGuardadoPendiente = true;
+    if (!SupabaseConfig.estaInicializado) return true;
+
+    try {
+      await _subir(reg);
+      await _cache.marcarSincronizado(reg.id);
+      ultimoGuardadoPendiente = false;
+    } catch (e) {
+      debugPrint('Registro guardado en el celular; se subirá cuando haya conexión: $e');
+    }
+    return true;
+  }
+
+  Future<void> _subir(RegistroFisicoquimico reg) async {
+    final cliente = SupabaseConfig.cliente;
+    final mapa = paraInsertarEnSupabase(reg.toMap());
+    String idRemoto;
+    if (mapa.containsKey('id')) {
+      // Con id propio: si ya estaba arriba (se cortó la respuesta), no se duplica.
+      await cliente.from('registros_fisicoquimicos').upsert(mapa, onConflict: 'id', ignoreDuplicates: true);
+      idRemoto = reg.id;
+    } else {
+      final res = await cliente.from('registros_fisicoquimicos').insert(mapa).select().single();
+      idRemoto = res['id']?.toString() ?? reg.id;
+    }
+    if (reg.puntosControl.isNotEmpty) {
+      await cliente.from('puntos_control_mediciones').upsert(
+            [for (final p in reg.puntosControl) paraInsertarEnSupabase(p.toMap(fkRegistroId: idRemoto))],
+            onConflict: 'id',
+            ignoreDuplicates: true,
+          );
     }
   }
 
-  /// Guarda un nuevo registro junto con sus puntos de control
-  Future<bool> guardarRegistro(RegistroFisicoquimico registro) async {
-    if (!SupabaseConfig.estaInicializado) {
-      _registrosMemoria.insert(0, registro);
-      return true;
-    }
+  Future<int> contarPendientes() async =>
+      SupabaseConfig.estaInicializado ? await _cache.contarPendientes() : 0;
 
-    try {
-      final mapaRegistro = paraInsertarEnSupabase(registro.toMap());
-      final res = await SupabaseConfig.cliente
-          .from('registros_fisicoquimicos')
-          .insert(mapaRegistro)
-          .select()
-          .single();
-
-      final idInsertado = res['id']?.toString() ?? registro.id;
-
-      if (registro.puntosControl.isNotEmpty) {
-        final listaPuntos = registro.puntosControl
-            .map((p) => p.toMap(fkRegistroId: idInsertado))
-            .toList();
-
-        await SupabaseConfig.cliente
-            .from('puntos_control_mediciones')
-            .insert(listaPuntos);
+  /// Sube lo que quedó guardado sin conexión. Devuelve el error del primer registro que falle.
+  Future<String?> subirPendientes() async {
+    if (!SupabaseConfig.estaInicializado) return null;
+    String? error;
+    for (final reg in await _cache.pendientes()) {
+      try {
+        await _subir(reg);
+        await _cache.marcarSincronizado(reg.id);
+      } catch (e) {
+        error ??= '$e';
       }
-
-      _registrosMemoria.insert(0, registro);
-      return true;
-    } catch (e) {
-      debugPrint('Error al guardar registro en Supabase: $e');
-      // Guardar en memoria para no perder datos en campo
-      _registrosMemoria.insert(0, registro);
-      return true;
     }
+    return error;
   }
 
   /// Elimina un registro por ID
   Future<bool> eliminarRegistro(String id) async {
     _registrosMemoria.removeWhere((r) => r.id == id);
+    await _cache.eliminar(id);
 
     if (!SupabaseConfig.estaInicializado) return true;
 

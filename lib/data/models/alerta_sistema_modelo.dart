@@ -77,6 +77,69 @@ class AlertaSistema {
     this.notaResolucion,
   });
 
+  /// Para guardar la alerta en el celular.
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'titulo': titulo,
+        'descripcion': descripcion,
+        'severidad': severidad.name,
+        'fecha_hora': fechaHora.toIso8601String(),
+        'hora': hora,
+        'leida': leida,
+        'resuelta': resuelta,
+        'parametro': parametro,
+        'valor_registrado': valorRegistrado,
+        'rango_esperado': rangoEsperado,
+        'grupo_fecha': grupoFecha,
+        'tipo_formato': tipoFormato?.name,
+        'registro_id': registroId,
+        'responsable': responsable,
+        'punto_control': puntoControl,
+        'parametro_clave': parametroClave,
+        'minimo': minimo,
+        'maximo': maximo,
+        'unidad': unidad,
+        'resuelta_por': resueltaPor,
+        'fecha_resolucion': fechaResolucion?.toIso8601String(),
+        'nota_resolucion': notaResolucion,
+      };
+
+  factory AlertaSistema.fromMap(Map<String, dynamic> m) {
+    T? enumDe<T extends Enum>(List<T> valores, Object? nombre) {
+      for (final v in valores) {
+        if (v.name == nombre) return v;
+      }
+      return null;
+    }
+
+    double? numero(Object? v) => (v as num?)?.toDouble();
+    return AlertaSistema(
+      id: m['id'] as String,
+      titulo: m['titulo'] as String? ?? '',
+      descripcion: m['descripcion'] as String? ?? '',
+      severidad: enumDe(SeveridadAlerta.values, m['severidad']) ?? SeveridadAlerta.advertencia,
+      fechaHora: DateTime.tryParse(m['fecha_hora'] as String? ?? '') ?? DateTime.now(),
+      hora: m['hora'] as String? ?? '',
+      leida: m['leida'] as bool? ?? false,
+      resuelta: m['resuelta'] as bool? ?? false,
+      parametro: m['parametro'] as String?,
+      valorRegistrado: numero(m['valor_registrado']),
+      rangoEsperado: m['rango_esperado'] as String?,
+      grupoFecha: m['grupo_fecha'] as String? ?? 'HOY',
+      tipoFormato: enumDe(TipoFormatoAlerta.values, m['tipo_formato']),
+      registroId: m['registro_id'] as String?,
+      responsable: m['responsable'] as String?,
+      puntoControl: m['punto_control'] as String?,
+      parametroClave: m['parametro_clave'] as String?,
+      minimo: numero(m['minimo']),
+      maximo: numero(m['maximo']),
+      unidad: m['unidad'] as String?,
+      resueltaPor: m['resuelta_por'] as String?,
+      fechaResolucion: DateTime.tryParse(m['fecha_resolucion'] as String? ?? ''),
+      notaResolucion: m['nota_resolucion'] as String?,
+    );
+  }
+
   EstadoAlerta get estado => resuelta
       ? EstadoAlerta.resuelta
       : (leida ? EstadoAlerta.leida : EstadoAlerta.nueva);

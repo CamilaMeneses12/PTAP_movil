@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/identificador.dart';
 import '../../../data/models/alerta_sistema_modelo.dart';
 import '../../../data/models/registro_fisicoquimico.dart';
 import '../../../domain/alertas/catalogo_parametros_alerta.dart';
@@ -152,7 +153,7 @@ class _FormularioFisicoquimicoScreenState
     final hallazgos = _obtenerHallazgos();
     final evaluaciones = hallazgos.map((h) => h.evaluacion).toList();
     final hayAlertas = evaluaciones.isNotEmpty;
-    final registroId = 'reg-${DateTime.now().millisecondsSinceEpoch}';
+    final registroId = generarUuid();
 
     // Validación: Valores fuera de rango -> Aviso informativo no bloqueante
     if (hayAlertas) {
@@ -303,9 +304,10 @@ class _FormularioFisicoquimicoScreenState
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              hayAlertas
-                  ? 'Registro guardado con observaciones y alerta generada en el sistema.'
-                  : 'Registro de calidad del agua guardado correctamente.',
+              (hayAlertas
+                      ? 'Registro guardado con observaciones y alerta generada en el sistema.'
+                      : 'Registro de calidad del agua guardado correctamente.') +
+                  (provider.ultimoGuardadoPendiente ? ' Sin conexión: quedó en el celular y se subirá cuando vuelva la señal.' : ''),
             ),
             backgroundColor: hayAlertas ? AppColors.advertencia : AppColors.exito,
           ),

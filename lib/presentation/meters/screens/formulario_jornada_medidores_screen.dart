@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/identificador.dart';
 import '../../../data/models/alerta_sistema_modelo.dart';
 import '../../../data/models/medidores_modelos.dart';
 import '../../../data/services/foto_lectura_service.dart';
@@ -158,7 +159,7 @@ class _FormularioJornadaMedidoresScreenState
     // Las anomalías no se muestran al operario mientras registra: se marcan en el registro
     // (fuera_de_rango) y se envían a la pantalla Alertas.
     bool fueraDeRango = false;
-    final jornadaId = 'jornada-${DateTime.now().millisecondsSinceEpoch}';
+    final jornadaId = generarUuid();
     final responsable = _responsableController.text.trim();
 
     for (final m in medidores) {
@@ -209,7 +210,6 @@ class _FormularioJornadaMedidoresScreenState
     }
 
     setState(() => _guardando = true);
-    final fotosService = FotoLecturaService();
     final listaLecturas = <LecturaMedidor>[];
 
     for (final m in medidores) {
@@ -225,14 +225,12 @@ class _FormularioJornadaMedidoresScreenState
         nombreMedidor: m.nombre,
       ).cumple;
 
-      // La foto se sube como evidencia; si falla, la lectura se guarda igual.
+      // La foto de evidencia se guarda en el celular y se sube junto con la jornada,
+      // ahora o cuando vuelva la conexión.
       final fotoLocal = _fotos[m.id];
       final fotoUrl = fotoLocal == null
           ? null
-          : await fotosService.subir(
-              fotoLocal,
-              FotoLecturaService.rutaRemota(fecha: _fecha, jornadaId: jornadaId, codigoMedidor: m.codigo),
-            );
+          : await FotoLecturaService.guardarCopiaLocal(fotoLocal, '${jornadaId}_${m.codigo}');
 
       listaLecturas.add(
         LecturaMedidor(
@@ -275,8 +273,11 @@ class _FormularioJornadaMedidoresScreenState
       setState(() => _guardando = false);
       if (exito) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Jornada de medidores guardada exitosamente.'),
+          SnackBar(
+            content: Text(
+              'Jornada de medidores guardada exitosamente.'
+              '${provider.ultimoGuardadoPendiente ? ' Sin conexión: quedó en el celular y se subirá cuando vuelva la señal.' : ''}',
+            ),
             backgroundColor: AppColors.exito,
           ),
         );

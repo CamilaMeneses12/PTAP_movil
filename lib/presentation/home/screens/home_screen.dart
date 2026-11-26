@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../alerts/providers/alertas_provider.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../common/widgets/aviso_sincronizacion.dart';
 import '../../../domain/calculations/resumen_inicio.dart';
 import '../../flow/providers/caudal_provider.dart';
 import '../../history/providers/historial_provider.dart';
@@ -152,6 +153,9 @@ class HomeScreen extends StatelessWidget {
               ),
 
               const SizedBox(height: 14),
+
+              // Registros guardados en el celular sin subir (modo sin conexión)
+              const AvisoSincronizacion(),
 
               // 2. Tarjetas calculadas con los registros del operario (DO-F-070, medidores,
               //    aforos y alertas). Se actualizan solas porque escuchan a los providers.

@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import '../../core/utils/mapa_supabase.dart';
 import '../../core/utils/supabase_config.dart';
+import '../local/cache_sincronizable.dart';
+import '../local/serializacion_local.dart';
 import '../models/aforo_caudal_modelo.dart';
 
 /// Repositorio para la gestión de aforos de caudal de la quebrada La Seca
@@ -103,12 +105,27 @@ class CaudalRepository {
     }
   }
 
-  /// Obtiene los aforos ordenados cronológicamente
+  CacheSincronizable<AforoCaudal> get _cache => CacheSincronizable.de<AforoCaudal>(
+        'aforos_caudal',
+        aMapa: SerializacionLocal.aforoAMapa,
+        deMapa: SerializacionLocal.aforoDeMapa,
+        idDe: (a) => a.id,
+      );
+
+  /// true si el último aforo guardado quedó en el celular esperando conexión.
+  bool ultimoGuardadoPendiente = false;
+
+  static List<AforoCaudal> _cronologico(Iterable<AforoCaudal> lista) => lista.toList()
+    ..sort((a, b) {
+      final f = a.fecha.compareTo(b.fecha);
+      return f != 0 ? f : a.hora.compareTo(b.hora);
+    });
+
+  /// Obtiene los aforos ordenados cronológicamente.
+  /// Sin conexión devuelve la última copia guardada en el celular más lo pendiente de subir.
   Future<List<AforoCaudal>> obtenerAforos() async {
     if (!SupabaseConfig.estaInicializado) {
-      final copia = List<AforoCaudal>.from(_aforosMemoria);
-      copia.sort((a, b) => a.fecha.compareTo(b.fecha));
-      return copia;
+      return _cronologico([..._aforosMemoria, ...await _cache.todos()]);
     }
 
     try {
@@ -120,31 +137,57 @@ class CaudalRepository {
       final lista = (res as List)
           .map((m) => AforoCaudal.fromMap(m as Map<String, dynamic>))
           .toList();
-
-      if (lista.isEmpty) {
-        return List.unmodifiable(_aforosMemoria);
-      }
-      return lista;
+      await _cache.reemplazarSincronizados(lista);
     } catch (e) {
-      debugPrint('Error al consultar aforos en Supabase, usando memoria: $e');
-      final copia = List<AforoCaudal>.from(_aforosMemoria);
-      copia.sort((a, b) => a.fecha.compareTo(b.fecha));
-      return copia;
+      debugPrint('Sin conexión con Supabase, se muestran los aforos guardados en el celular: $e');
     }
+    final locales = await _cache.todos();
+    // Base de datos aún vacía: se muestra la serie histórica del Excel.
+    if (locales.isEmpty) return List.unmodifiable(_aforosMemoria);
+    return _cronologico(locales);
   }
 
-  /// Guarda un nuevo aforo
+  /// Guarda primero en el celular y luego intenta subirlo. Sin conexión queda pendiente.
   Future<bool> guardarAforo(AforoCaudal aforo) async {
-    _aforosMemoria.add(aforo);
-
+    await _cache.agregarPendiente(aforo);
+    ultimoGuardadoPendiente = true;
     if (!SupabaseConfig.estaInicializado) return true;
 
     try {
-      await SupabaseConfig.cliente.from('aforos_caudal').insert(paraInsertarEnSupabase(aforo.toMap()));
-      return true;
+      await _subir(aforo);
+      await _cache.marcarSincronizado(aforo.id);
+      ultimoGuardadoPendiente = false;
     } catch (e) {
-      debugPrint('Error al guardar aforo en Supabase: $e');
-      return true;
+      debugPrint('Aforo guardado en el celular; se subirá cuando haya conexión: $e');
     }
+    return true;
+  }
+
+  Future<void> _subir(AforoCaudal aforo) async {
+    final mapa = paraInsertarEnSupabase(aforo.toMap());
+    final tabla = SupabaseConfig.cliente.from('aforos_caudal');
+    if (mapa.containsKey('id')) {
+      await tabla.upsert(mapa, onConflict: 'id', ignoreDuplicates: true);
+    } else {
+      await tabla.insert(mapa);
+    }
+  }
+
+  Future<int> contarPendientes() async =>
+      SupabaseConfig.estaInicializado ? await _cache.contarPendientes() : 0;
+
+  /// Sube lo que quedó guardado sin conexión. Devuelve el error del primer aforo que falle.
+  Future<String?> subirPendientes() async {
+    if (!SupabaseConfig.estaInicializado) return null;
+    String? error;
+    for (final a in await _cache.pendientes()) {
+      try {
+        await _subir(a);
+        await _cache.marcarSincronizado(a.id);
+      } catch (e) {
+        error ??= '$e';
+      }
+    }
+    return error;
   }
 }

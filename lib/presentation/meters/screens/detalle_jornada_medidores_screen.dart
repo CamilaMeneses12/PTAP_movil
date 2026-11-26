@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -303,6 +305,23 @@ class _MiniaturaFotoLectura extends StatelessWidget {
       return Text(
         lectura.metodoLectura == 'manual' ? 'Manual' : 'Cámara (sin foto)',
         style: const TextStyle(fontSize: 12, color: AppColors.textoSecundario),
+      );
+    }
+    // Foto guardada en el celular que aún no se sube (registro sin conexión).
+    final local = FotoLecturaService.rutaLocalDe(ruta);
+    if (local != null) {
+      return Tooltip(
+        message: 'Foto guardada en el celular; se subirá cuando haya conexión',
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: Image.file(
+            File(local),
+            width: 44,
+            height: 44,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => const Icon(Icons.cloud_off_rounded, size: 20, color: AppColors.advertencia),
+          ),
+        ),
       );
     }
     return FutureBuilder<String?>(

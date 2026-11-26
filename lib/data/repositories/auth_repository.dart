@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/utils/supabase_config.dart';
+import '../local/almacen_local.dart';
 import '../models/usuario_perfil.dart';
 import 'admin_repository.dart';
 
@@ -170,6 +171,22 @@ class AuthRepository {
     return nuevoPerfil;
   }
 
+  static const _clavePerfilLocal = 'perfil_sesion';
+
+  /// Copia del perfil en el celular: con ella la sesión sigue abierta si la app arranca sin internet.
+  static Future<void> _guardarPerfilLocal(UsuarioPerfil? perfil) => AlmacenLocal.instancia.guardarObjeto(
+        _clavePerfilLocal,
+        perfil == null ? null : {...perfil.toMap(), 'created_at': perfil.createdAt.toIso8601String()},
+      );
+
+  static Future<UsuarioPerfil?> _perfilLocal(String userId) async {
+    try {
+      final m = await AlmacenLocal.instancia.leerObjeto(_clavePerfilLocal);
+      if (m != null && m['id'] == userId) return UsuarioPerfil.fromMap(m);
+    } catch (_) {}
+    return null;
+  }
+
   /// Obtiene los datos del perfil desde la tabla 'perfiles' o del respaldo local
   Future<UsuarioPerfil> obtenerPerfil(String userId) async {
     if (SupabaseConfig.estaInicializado) {
@@ -181,7 +198,9 @@ class AuthRepository {
             .maybeSingle();
 
         if (datos != null) {
-          return UsuarioPerfil.fromMap(datos);
+          final perfil = UsuarioPerfil.fromMap(datos);
+          await _guardarPerfilLocal(perfil);
+          return perfil;
         }
 
         final user = _cliente.auth.currentUser;
@@ -200,9 +219,13 @@ class AuthRepository {
           await _cliente.from('perfiles').insert(perfilNuevo.toMap());
         } catch (_) {}
 
+        await _guardarPerfilLocal(perfilNuevo);
         return perfilNuevo;
       } catch (e) {
         debugPrint('Error consultando perfil en Supabase: $e');
+        // Sin conexión: se usa la copia guardada en el celular del mismo usuario.
+        final local = await _perfilLocal(userId);
+        if (local != null) return local;
       }
     }
 
@@ -253,6 +276,7 @@ class AuthRepository {
   /// Cierra la sesión activa
   Future<void> cerrarSesion() async {
     _usuarioSesionLocal = null;
+    await _guardarPerfilLocal(null);
     if (SupabaseConfig.estaInicializado) {
       try {
         await _cliente.auth.signOut();

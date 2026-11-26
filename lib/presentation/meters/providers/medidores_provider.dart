@@ -12,6 +12,21 @@ class MedidoresProvider extends ChangeNotifier {
 
   List<JornadaMedidores> get jornadas => _jornadas;
   bool get cargando => _cargando;
+
+  int _pendientes = 0;
+
+  /// Registros guardados en el celular que aún no se suben a Supabase.
+  int get pendientes => _pendientes;
+
+  /// true si lo último que se guardó quedó en el celular esperando conexión.
+  bool get ultimoGuardadoPendiente => _repositorio.ultimoGuardadoPendiente;
+
+  /// Sube lo pendiente y recarga. Devuelve el error si algo no se pudo subir.
+  Future<String?> sincronizar() async {
+    final error = await _repositorio.subirPendientes();
+    await cargarJornadas();
+    return error;
+  }
   String? get mensajeError => _mensajeError;
 
   MedidoresProvider({MedidoresRepository? repositorio})
@@ -32,6 +47,7 @@ class MedidoresProvider extends ChangeNotifier {
 
     try {
       _jornadas = await _repositorio.obtenerJornadas();
+      _pendientes = await _repositorio.contarPendientes();
     } catch (e) {
       _mensajeError = 'Error al cargar jornadas de medidores: $e';
     } finally {

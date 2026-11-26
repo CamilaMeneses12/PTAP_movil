@@ -1,6 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import '../../core/utils/mapa_supabase.dart';
+import '../../core/utils/identificador.dart';
 import '../../core/utils/supabase_config.dart';
+import '../local/cache_sincronizable.dart';
+import '../local/serializacion_local.dart';
+import '../services/foto_lectura_service.dart';
 import '../models/medidores_modelos.dart';
 
 /// Repositorio para la gestión de lecturas de medidores y balance hídrico
@@ -120,24 +126,42 @@ class MedidoresRepository {
   /// Retorna la lista oficial de medidores
   List<Medidor> obtenerMedidores() => medidoresOficiales;
 
+  CacheSincronizable<JornadaMedidores> get _cache => CacheSincronizable.de<JornadaMedidores>(
+        'jornadas_medidores',
+        aMapa: SerializacionLocal.jornadaAMapa,
+        deMapa: SerializacionLocal.jornadaDeMapa,
+        idDe: (j) => j.id,
+      );
+
+  /// true si la última jornada guardada quedó en el celular esperando conexión.
+  bool ultimoGuardadoPendiente = false;
+
+  /// Última lista conocida (la más reciente primero), para auto-llenar las lecturas anteriores.
+  List<JornadaMedidores> _conocidas = const [];
+
+  static List<JornadaMedidores> _ordenadas(Iterable<JornadaMedidores> lista) => lista.toList()
+    ..sort((a, b) {
+      final f = b.fecha.compareTo(a.fecha);
+      return f != 0 ? f : b.hora.compareTo(a.hora);
+    });
+
   /// Obtiene la última lectura conocida para cada medidor para auto-llenar el formulario
   Map<int, double> obtenerUltimasLecturas() {
     final mapa = <int, double>{};
-
-    if (_jornadasMemoria.isNotEmpty) {
-      final ultimaJornada = _jornadasMemoria.first;
-      for (final l in ultimaJornada.lecturas) {
+    final base = _conocidas.isNotEmpty ? _conocidas : _jornadasMemoria;
+    if (base.isNotEmpty) {
+      for (final l in base.first.lecturas) {
         mapa[l.medidorId] = l.lecturaActual;
       }
     }
-
     return mapa;
   }
 
-  /// Consulta el histórico de jornadas de medidores
+  /// Consulta el histórico de jornadas de medidores.
+  /// Sin conexión devuelve la última copia guardada en el celular más lo pendiente de subir.
   Future<List<JornadaMedidores>> obtenerJornadas() async {
     if (!SupabaseConfig.estaInicializado) {
-      return List.unmodifiable(_jornadasMemoria);
+      return _conocidas = _ordenadas([...await _cache.todos(), ..._jornadasMemoria]);
     }
 
     try {
@@ -155,58 +179,114 @@ class MedidoresRepository {
             (m) => m.id == mId,
             orElse: () => Medidor(id: mId, codigo: 'MED', nombre: 'Medidor $mId', tipo: 'micromedidor', orden: 0),
           );
-          return LecturaMedidor(
-            id: l['id']?.toString(),
-            jornadaId: l['jornada_id']?.toString(),
-            medidorId: mId,
-            medidorNombre: medidor.nombre,
-            tipoMedidor: medidor.tipo,
-            lecturaActual: (l['lectura_actual'] as num?)?.toDouble() ?? 0.0,
-            lecturaAnterior: (l['lectura_anterior'] as num?)?.toDouble() ?? 0.0,
-            consumo: (l['consumo'] as num?)?.toDouble() ?? 0.0,
-          );
+          return LecturaMedidor.fromMap({
+            ...Map<String, dynamic>.from(l as Map),
+            'medidor_nombre': medidor.nombre,
+            'tipo_medidor': medidor.tipo,
+          });
         }).toList();
 
         return JornadaMedidores.fromMap(mapa, lecturas: lecturas);
       }).toList();
 
-      return lista;
+      await _cache.reemplazarSincronizados(lista);
     } catch (e) {
-      debugPrint('Error al consultar jornadas en Supabase, usando memoria: $e');
-      return List.unmodifiable(_jornadasMemoria);
+      debugPrint('Sin conexión con Supabase, se muestran las jornadas guardadas en el celular: $e');
     }
+    return _conocidas = _ordenadas(await _cache.todos());
   }
 
-  /// Guarda una nueva jornada de medidores junto con las lecturas de los 9 medidores
+  /// Guarda primero en el celular y luego intenta subir la jornada con sus lecturas y fotos.
+  /// Sin conexión queda pendiente y se sube después (ver [subirPendientes]).
   Future<bool> guardarJornada(JornadaMedidores jornada) async {
-    _jornadasMemoria.insert(0, jornada);
+    // Cada lectura lleva su propio id para que un reintento no la duplique.
+    final mapa = SerializacionLocal.jornadaAMapa(jornada);
+    for (final l in (mapa['lecturas'] as List).cast<Map<String, dynamic>>()) {
+      l['id'] ??= generarUuid();
+    }
+    final j = SerializacionLocal.jornadaDeMapa(mapa);
 
+    await _cache.agregarPendiente(j);
+    _conocidas = _ordenadas([j, ..._conocidas.where((x) => x.id != j.id)]);
+    ultimoGuardadoPendiente = true;
     if (!SupabaseConfig.estaInicializado) return true;
 
     try {
-      final mapaJornada = paraInsertarEnSupabase(jornada.toMap());
-      final res = await SupabaseConfig.cliente
-          .from('jornadas_medidores')
-          .insert(mapaJornada)
-          .select()
-          .single();
-
-      final idInsertado = res['id']?.toString() ?? jornada.id;
-
-      if (jornada.lecturas.isNotEmpty) {
-        final listaLecturas = jornada.lecturas
-            .map((l) => paraInsertarEnSupabase(l.toMap(fkJornadaId: idInsertado)))
-            .toList();
-
-        await SupabaseConfig.cliente
-            .from('lecturas_medidores')
-            .insert(listaLecturas);
-      }
-
-      return true;
+      await _cache.marcarSincronizado(j.id, actualizado: await _subir(j));
+      ultimoGuardadoPendiente = false;
     } catch (e) {
-      debugPrint('Error guardando jornada en Supabase: $e');
-      return true; // Preservada en memoria
+      debugPrint('Jornada guardada en el celular; se subirá cuando haya conexión: $e');
     }
+    return true;
+  }
+
+  /// Sube primero las fotos guardadas en el celular y después la jornada y sus lecturas.
+  /// Devuelve la jornada con las rutas de las fotos ya subidas.
+  Future<JornadaMedidores> _subir(JornadaMedidores j) async {
+    final fotos = FotoLecturaService();
+    final lecturas = <LecturaMedidor>[];
+    for (final l in j.lecturas) {
+      final local = FotoLecturaService.rutaLocalDe(l.fotoUrl);
+      if (local == null) {
+        lecturas.add(l);
+        continue;
+      }
+      if (!await File(local).exists()) {
+        // La foto se borró del celular: la lectura se sube sin ella.
+        lecturas.add(l.copyWith(fotoUrl: ''));
+        continue;
+      }
+      final codigo = medidoresOficiales
+          .firstWhere((m) => m.id == l.medidorId,
+              orElse: () => Medidor(id: l.medidorId, codigo: 'MED-${l.medidorId}', nombre: '', tipo: '', orden: 0))
+          .codigo;
+      final remota = await fotos.subir(
+        local,
+        FotoLecturaService.rutaRemota(fecha: j.fecha, jornadaId: j.id, codigoMedidor: codigo),
+      );
+      if (remota == null) throw Exception('No se pudo subir la foto de ${l.medidorNombre}');
+      lecturas.add(l.copyWith(fotoUrl: remota));
+    }
+    final subida = JornadaMedidores.fromMap(SerializacionLocal.jornadaAMapa(j), lecturas: lecturas);
+
+    final cliente = SupabaseConfig.cliente;
+    final mapa = paraInsertarEnSupabase(subida.toMap());
+    String idRemoto;
+    if (mapa.containsKey('id')) {
+      await cliente.from('jornadas_medidores').upsert(mapa, onConflict: 'id', ignoreDuplicates: true);
+      idRemoto = subida.id;
+    } else {
+      final res = await cliente.from('jornadas_medidores').insert(mapa).select().single();
+      idRemoto = res['id']?.toString() ?? subida.id;
+    }
+    if (lecturas.isNotEmpty) {
+      await cliente.from('lecturas_medidores').upsert(
+            [
+              for (final l in lecturas)
+                paraInsertarEnSupabase(l.toMap(fkJornadaId: idRemoto))
+                  ..update('foto_url', (v) => (v == '') ? null : v),
+            ],
+            onConflict: 'id',
+            ignoreDuplicates: true,
+          );
+    }
+    return subida;
+  }
+
+  Future<int> contarPendientes() async =>
+      SupabaseConfig.estaInicializado ? await _cache.contarPendientes() : 0;
+
+  /// Sube lo que quedó guardado sin conexión. Devuelve el error de la primera jornada que falle.
+  Future<String?> subirPendientes() async {
+    if (!SupabaseConfig.estaInicializado) return null;
+    String? error;
+    for (final j in await _cache.pendientes()) {
+      try {
+        await _cache.marcarSincronizado(j.id, actualizado: await _subir(j));
+      } catch (e) {
+        error ??= '$e';
+      }
+    }
+    return error;
   }
 }

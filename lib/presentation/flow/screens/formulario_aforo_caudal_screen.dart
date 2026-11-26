@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/identificador.dart';
 import '../../../data/models/aforo_caudal_modelo.dart';
 import '../../../data/models/alerta_sistema_modelo.dart';
 import '../../../domain/alertas/catalogo_parametros_alerta.dart';
@@ -122,7 +123,7 @@ class _FormularioAforoCaudalScreenState
       return;
     }
 
-    final aforoId = 'aforo-${DateTime.now().millisecondsSinceEpoch}';
+    final aforoId = generarUuid();
     final authProvider = context.read<SesionUsuarioProvider>();
 
     // Validación fuera de rango operativo (aviso informativo no bloqueante)
@@ -235,7 +236,8 @@ class _FormularioAforoCaudalScreenState
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Aforo guardado: ${resultado.caudalLS.toStringAsFixed(2)} L/s (${resultado.caudalM3H.toStringAsFixed(1)} m³/h)',
+              'Aforo guardado: ${resultado.caudalLS.toStringAsFixed(2)} L/s (${resultado.caudalM3H.toStringAsFixed(1)} m³/h).'
+              '${provider.ultimoGuardadoPendiente ? ' Sin conexión: quedó en el celular y se subirá cuando vuelva la señal.' : ''}',
             ),
             backgroundColor: AppColors.exito,
           ),

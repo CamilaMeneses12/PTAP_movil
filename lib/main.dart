@@ -9,6 +9,7 @@ import 'presentation/admin/providers/admin_provider.dart';
 import 'presentation/alerts/providers/alertas_provider.dart';
 import 'presentation/asistente/providers/asistente_provider.dart';
 import 'presentation/auth/providers/auth_provider.dart';
+import 'presentation/common/providers/sincronizacion_provider.dart';
 import 'presentation/flow/providers/caudal_provider.dart';
 import 'presentation/history/providers/historial_provider.dart';
 import 'presentation/meters/providers/medidores_provider.dart';
@@ -46,6 +47,7 @@ class _PlantaAguaAppState extends State<PlantaAguaApp> {
   late final UmbralesProvider _umbralesProvider;
   late final PreferenciasProvider _preferenciasProvider;
   late final AsistenteProvider _asistenteProvider;
+  late final SincronizacionProvider _sincronizacionProvider;
 
   @override
   void initState() {
@@ -61,6 +63,18 @@ class _PlantaAguaAppState extends State<PlantaAguaApp> {
     _umbralesProvider = UmbralesProvider()..cargar();
     _preferenciasProvider = PreferenciasProvider();
     _asistenteProvider = AsistenteProvider();
+    // Sube a Supabase lo que se guardó en el celular sin conexión.
+    _sincronizacionProvider = SincronizacionProvider(
+      fisico: _fisicoquimicoProvider,
+      medidores: _medidoresProvider,
+      caudal: _caudalProvider,
+    );
+  }
+
+  @override
+  void dispose() {
+    _sincronizacionProvider.dispose();
+    super.dispose();
   }
 
   @override
@@ -77,6 +91,7 @@ class _PlantaAguaAppState extends State<PlantaAguaApp> {
         ChangeNotifierProvider.value(value: _umbralesProvider),
         ChangeNotifierProvider.value(value: _preferenciasProvider),
         ChangeNotifierProvider.value(value: _asistenteProvider),
+        ChangeNotifierProvider.value(value: _sincronizacionProvider),
       ],
       child: Builder(
         builder: (context) {
