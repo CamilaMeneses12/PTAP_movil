@@ -437,6 +437,12 @@ class SeccionCuentaPerfil extends StatelessWidget {
               alPulsar: () => context.push(AppRoutes.configuracion),
             ),
             FilaNavegacionPerfil(
+              key: const Key('abrir_mcp'),
+              icono: Icons.hub_outlined,
+              titulo: 'Servidor MCP (asistentes de IA)',
+              alPulsar: () => context.push(AppRoutes.mcp),
+            ),
+            FilaNavegacionPerfil(
               icono: Icons.help_outline_rounded,
               titulo: 'Centro de ayuda y soporte',
               alPulsar: () => context.push(AppRoutes.ayuda),

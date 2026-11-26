@@ -34,6 +34,9 @@ class AsistenteProvider extends ChangeNotifier {
   String urlServidor = '';
   ModoAsistente modo = ModoAsistente.automatico;
   SesionAsistente? sesion;
+
+  /// Token del servidor MCP generado en esta sesión (solo en memoria).
+  TokenMcp? tokenMcp;
   bool? servidorDisponible;
   bool modeloInstalado = false;
   bool descargando = false;
@@ -66,9 +69,13 @@ class AsistenteProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Dirección del servidor MCP: la misma API con la ruta /mcp.
+  String get urlMcp => urlServidor.isEmpty ? '' : '${urlServidor.replaceAll(RegExp(r'/+$'), '')}/mcp';
+
   Future<void> cambiarUrl(String url) async {
     urlServidor = url.trim();
     sesion = null;
+    tokenMcp = null;
     notifyListeners();
     try {
       (await SharedPreferences.getInstance()).setString(_claveUrl, urlServidor);
@@ -99,8 +106,28 @@ class AsistenteProvider extends ChangeNotifier {
     }
   }
 
+  /// Genera un token MCP con la sesión iniciada. Devuelve null si salió bien, o el mensaje de error.
+  Future<String?> generarTokenMcp() async {
+    final s = sesion;
+    if (s == null) return 'Primero inicie sesión en el servidor.';
+    try {
+      tokenMcp = await _api.tokenMcp(s.token);
+      notifyListeners();
+      return null;
+    } on AsistenteApiException catch (e) {
+      if (e.estado == 401) {
+        sesion = null;
+        notifyListeners();
+      }
+      return e.mensaje;
+    } catch (e) {
+      return 'No se pudo generar el token: $e';
+    }
+  }
+
   void salir() {
     sesion = null;
+    tokenMcp = null;
     notifyListeners();
   }
 

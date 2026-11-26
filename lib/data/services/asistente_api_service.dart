@@ -12,6 +12,16 @@ class SesionAsistente {
   const SesionAsistente({required this.token, required this.nombre, required this.rol});
 }
 
+/// Token para conectar un asistente de IA (por ejemplo Claude Code) al servidor MCP de la planta.
+/// Es una credencial: vive solo en memoria y no se guarda en el celular.
+class TokenMcp {
+  final String token;
+  final String vigencia;
+  final String rol;
+
+  const TokenMcp({required this.token, required this.vigencia, required this.rol});
+}
+
 /// Respuesta del chat del servidor: se recibe por partes mientras el modelo escribe.
 class RespuestaServidor {
   /// 'nube' (Groq) o 'local' (Ollama en el servidor).
@@ -63,6 +73,16 @@ class AsistenteApiService {
       token: datos['token'] as String,
       nombre: usuario['nombre'] as String,
       rol: usuario['rol'] as String,
+    );
+  }
+
+  /// Pide un token MCP (7 días) con la sesión iniciada. Las herramientas dependen del rol.
+  Future<TokenMcp> tokenMcp(String token) async {
+    final datos = await _json('POST', '/api/auth/token-mcp', token: token);
+    return TokenMcp(
+      token: datos['token'] as String,
+      vigencia: datos['vigencia'] as String? ?? '7 días',
+      rol: datos['rol'] as String? ?? '',
     );
   }
 

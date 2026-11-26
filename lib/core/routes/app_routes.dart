@@ -8,6 +8,7 @@ import '../../presentation/admin/screens/admin_dashboard_screen.dart';
 import '../../presentation/alerts/screens/alertas_screen.dart';
 import '../../presentation/alerts/screens/detalle_alerta_screen.dart';
 import '../../presentation/asistente/screens/asistente_screen.dart';
+import '../../presentation/asistente/screens/conexion_mcp_screen.dart';
 import '../../presentation/auth/providers/auth_provider.dart';
 import '../../presentation/auth/screens/login_screen.dart';
 import '../../presentation/auth/screens/perfil_screen.dart';
@@ -56,6 +57,9 @@ class AppRoutes {
 
   // Asistente PTAP (chatbot: servidor con nube + modelo local, o modelo dentro del celular)
   static const String asistente = '/asistente';
+
+  // Conexión de asistentes de IA al servidor MCP de la planta
+  static const String mcp = '/asistente/mcp';
 
   // Parámetros Fisicoquímicos (DO-F-070)
   static const String fisicoquimicos = '/fisicoquimicos';
@@ -216,6 +220,11 @@ class AppRoutes {
           path: '$alertaDetalle/:id',
           name: 'alertaDetalle',
           builder: (context, state) => DetalleAlertaScreen(alertaId: state.pathParameters['id']!),
+        ),
+        GoRoute(
+          path: mcp,
+          name: 'mcp',
+          builder: (context, state) => const ConexionMcpScreen(),
         ),
         GoRoute(
           path: asistente,
