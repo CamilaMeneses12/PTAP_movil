@@ -8,6 +8,7 @@ import '../../../data/models/alerta_sistema_modelo.dart';
 import '../../../data/models/medidores_modelos.dart';
 import '../../../data/services/foto_lectura_service.dart';
 import '../../../domain/calculations/calculos_medidores.dart';
+import '../../../domain/alertas/catalogo_parametros_alerta.dart';
 import '../../../domain/validators/validador_rangos.dart';
 import '../../alerts/providers/alertas_provider.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -157,6 +158,8 @@ class _FormularioJornadaMedidoresScreenState
     // Las anomalías no se muestran al operario mientras registra: se marcan en el registro
     // (fuera_de_rango) y se envían a la pantalla Alertas.
     bool fueraDeRango = false;
+    final jornadaId = 'jornada-${DateTime.now().millisecondsSinceEpoch}';
+    final responsable = _responsableController.text.trim();
 
     for (final m in medidores) {
       final act = _parse(_actualControllers[m.id]!);
@@ -169,11 +172,19 @@ class _FormularioJornadaMedidoresScreenState
       if (!val.cumple) {
         fueraDeRango = true;
         alertasProv.agregarAlerta(
-          titulo: 'Lectura de medidor anómala',
+          titulo: 'Lectura de medidor anómala · ${m.nombre}',
           descripcion: val.mensajeCompleto,
           severidad: SeveridadAlerta.advertencia,
-          parametro: m.nombre,
+          parametro: 'Lectura del medidor',
           valorRegistrado: act,
+          tipoFormato: TipoFormatoAlerta.medidores,
+          registroId: jornadaId,
+          responsable: responsable,
+          puntoControl: m.nombre,
+          parametroClave: 'lectura_medidor',
+          minimo: ant,
+          unidad: 'm³',
+          rangoEsperado: 'Igual o mayor que la lectura anterior',
         );
       }
     }
@@ -186,13 +197,18 @@ class _FormularioJornadaMedidoresScreenState
         descripcion:
             'Balance hídrico con ANR de ${balance.aguaNoRegistrada.toStringAsFixed(2)} m³ (${balance.porcentajePerdida.toStringAsFixed(1)}%).',
         severidad: SeveridadAlerta.advertencia,
-        parametro: 'Balance ANR',
+        parametro: 'Agua no registrada',
         valorRegistrado: balance.aguaNoRegistrada,
+        tipoFormato: TipoFormatoAlerta.medidores,
+        registroId: jornadaId,
+        responsable: responsable,
+        parametroClave: 'agua_no_registrada',
+        maximo: CatalogoParametrosAlerta.perdidaElevadaM3,
+        unidad: 'm³',
       );
     }
 
     setState(() => _guardando = true);
-    final jornadaId = 'jornada-${DateTime.now().millisecondsSinceEpoch}';
     final fotosService = FotoLecturaService();
     final listaLecturas = <LecturaMedidor>[];
 

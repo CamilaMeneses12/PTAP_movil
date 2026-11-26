@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/alerta_sistema_modelo.dart';
 import '../../../data/models/registro_fisicoquimico.dart';
+import '../../../domain/alertas/catalogo_parametros_alerta.dart';
 import '../../../domain/validators/validador_rangos.dart';
 import '../../alerts/providers/alertas_provider.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -93,67 +94,50 @@ class _FormularioFisicoquimicoScreenState
   double? _parse(TextEditingController c) =>
       double.tryParse(c.text.trim().replaceAll(',', '.'));
 
-  // Evalúa si existe algún parámetro fuera de los límites de la Resolución 2115 / DO-F-070
-  List<EvaluacionRango> _obtenerEvaluacionesFueraDeRango() {
-    final evals = <EvaluacionRango>[];
+  // Evalúa si existe algún parámetro fuera de los límites de la Resolución 2115 / DO-F-070.
+  // Cada hallazgo lleva la clave del parámetro y el punto de control para el detalle de la alerta.
+  List<_Hallazgo> _obtenerHallazgos() {
+    final hallazgos = <_Hallazgo>[];
+    void evaluar(String clave, String nombre, double? valor, {String? punto}) {
+      if (valor == null) return;
+      final param = CatalogoParametrosAlerta.buscar(clave)!;
+      final eval = punto == null
+          ? param.evaluar(valor)
+          : switch (clave) {
+              'ph_red' => ValidadorRangos.validarPhTratada(valor, nombre: 'pH $punto'),
+              'turbidez_red' => ValidadorRangos.validarTurbidezTratada(valor, nombre: 'Turbidez $punto'),
+              _ => ValidadorRangos.validarCloroResidual(valor, nombre: 'Cloro $punto'),
+            };
+      if (!eval.cumple) hallazgos.add(_Hallazgo(clave, nombre, punto, eval));
+    }
 
     // Cruda
-    final crudaPh = _parse(_crudaPhController);
-    final valCrudaPh = ValidadorRangos.validarPhCruda(crudaPh);
-    if (!valCrudaPh.cumple) evals.add(valCrudaPh);
-
-    final crudaTurb = _parse(_crudaTurbidezController);
-    final valCrudaTurb = ValidadorRangos.validarTurbidezCruda(crudaTurb);
-    if (!valCrudaTurb.cumple) evals.add(valCrudaTurb);
-
-    final crudaColor = _parse(_crudaColorController);
-    final valCrudaCol = ValidadorRangos.validarColorCruda(crudaColor);
-    if (!valCrudaCol.cumple) evals.add(valCrudaCol);
+    evaluar('ph_cruda', 'pH agua cruda', _parse(_crudaPhController));
+    evaluar('turbidez_cruda', 'Turbidez agua cruda', _parse(_crudaTurbidezController));
+    evaluar('color_cruda', 'Color agua cruda', _parse(_crudaColorController));
 
     // Filtrada
-    final filtPh = _parse(_filtradaPhController);
-    final valFiltPh = ValidadorRangos.validarPhTratada(filtPh, nombre: 'pH Agua Filtrada');
-    if (!valFiltPh.cumple) evals.add(valFiltPh);
-
-    final filtTurb = _parse(_filtradaTurbidezController);
-    final valFiltTurb = ValidadorRangos.validarTurbidezTratada(filtTurb, nombre: 'Turbidez Agua Filtrada');
-    if (!valFiltTurb.cumple) evals.add(valFiltTurb);
+    evaluar('ph_filtrada', 'pH agua filtrada', _parse(_filtradaPhController));
+    evaluar('turbidez_filtrada', 'Turbidez agua filtrada', _parse(_filtradaTurbidezController));
 
     // Clorada
-    final clorPh = _parse(_cloradaPhController);
-    final valClorPh = ValidadorRangos.validarPhTratada(clorPh, nombre: 'pH Agua Clorada');
-    if (!valClorPh.cumple) evals.add(valClorPh);
-
-    final clorTurb = _parse(_cloradaTurbidezController);
-    final valClorTurb = ValidadorRangos.validarTurbidezTratada(clorTurb, nombre: 'Turbidez Agua Clorada');
-    if (!valClorTurb.cumple) evals.add(valClorTurb);
-
-    final clorCol = _parse(_cloradaColorController);
-    final valClorCol = ValidadorRangos.validarColorAparente(clorCol, nombre: 'Color Aparente Clorada');
-    if (!valClorCol.cumple) evals.add(valClorCol);
-
-    final clorCloro = _parse(_cloradaCloroController);
-    final valClorCloro = ValidadorRangos.validarCloroResidual(clorCloro, nombre: 'Cloro Residual Clorada');
-    if (!valClorCloro.cumple) evals.add(valClorCloro);
+    evaluar('ph_clorada', 'pH agua tratada', _parse(_cloradaPhController));
+    evaluar('turbidez_clorada', 'Turbidez agua tratada', _parse(_cloradaTurbidezController));
+    evaluar('color_clorada', 'Color aparente agua tratada', _parse(_cloradaColorController));
+    evaluar('cloro_clorada', 'Cloro residual libre', _parse(_cloradaCloroController));
 
     // Puntos de Red
     for (final p in _puntosControl) {
-      if (p.ph != null) {
-        final v = ValidadorRangos.validarPhTratada(p.ph, nombre: 'pH ${p.areaNombre}');
-        if (!v.cumple) evals.add(v);
-      }
-      if (p.turbidez != null) {
-        final v = ValidadorRangos.validarTurbidezTratada(p.turbidez, nombre: 'Turbidez ${p.areaNombre}');
-        if (!v.cumple) evals.add(v);
-      }
-      if (p.cloroResidual != null) {
-        final v = ValidadorRangos.validarCloroResidual(p.cloroResidual, nombre: 'Cloro ${p.areaNombre}');
-        if (!v.cumple) evals.add(v);
-      }
+      evaluar('ph_red', 'pH en la red', p.ph, punto: p.areaNombre);
+      evaluar('turbidez_red', 'Turbidez en la red', p.turbidez, punto: p.areaNombre);
+      evaluar('cloro_red', 'Cloro residual en la red', p.cloroResidual, punto: p.areaNombre);
     }
 
-    return evals;
+    return hallazgos;
   }
+
+  List<EvaluacionRango> _obtenerEvaluacionesFueraDeRango() =>
+      _obtenerHallazgos().map((h) => h.evaluacion).toList();
 
   List<String> _obtenerAlertasFueraDeRango() {
     return _obtenerEvaluacionesFueraDeRango()
@@ -164,8 +148,10 @@ class _FormularioFisicoquimicoScreenState
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final evaluaciones = _obtenerEvaluacionesFueraDeRango();
+    final hallazgos = _obtenerHallazgos();
+    final evaluaciones = hallazgos.map((h) => h.evaluacion).toList();
     final hayAlertas = evaluaciones.isNotEmpty;
+    final registroId = 'reg-${DateTime.now().millisecondsSinceEpoch}';
 
     // Validación: Valores fuera de rango -> Aviso informativo no bloqueante
     if (hayAlertas) {
@@ -266,13 +252,16 @@ class _FormularioFisicoquimicoScreenState
 
       // Generar alertas en AlertasProvider
       final alertasProv = context.read<AlertasProvider>();
-      for (final ev in evaluaciones) {
-        alertasProv.agregarAlerta(
-          titulo: 'Parámetro fuera de norma técnica',
-          descripcion: ev.mensajeCompleto,
-          severidad: ev.esCritico ? SeveridadAlerta.critica : SeveridadAlerta.advertencia,
-          parametro: ev.unidad,
-          valorRegistrado: ev.valor,
+      for (final h in hallazgos) {
+        alertasProv.agregarDesdeEvaluacion(
+          evaluacion: h.evaluacion,
+          titulo: h.punto == null ? '${h.nombre} fuera de rango' : '${h.nombre} fuera de rango · ${h.punto}',
+          parametro: h.nombre,
+          parametroClave: h.clave,
+          tipoFormato: TipoFormatoAlerta.fisicoquimico,
+          registroId: registroId,
+          responsable: _responsableController.text.trim(),
+          puntoControl: h.punto,
         );
       }
     }
@@ -282,7 +271,7 @@ class _FormularioFisicoquimicoScreenState
         '${_hora.hour.toString().padLeft(2, '0')}:${_hora.minute.toString().padLeft(2, '0')}';
 
     final nuevoRegistro = RegistroFisicoquimico(
-      id: 'reg-${DateTime.now().millisecondsSinceEpoch}',
+      id: registroId,
       fecha: _fecha,
       hora: horaTexto,
       crudaCaudalEntrada: _parse(_crudaCaudalController),
@@ -1044,4 +1033,13 @@ class _FormularioFisicoquimicoScreenState
       ),
     );
   }
+}
+
+/// Valor fuera de rango del DO-F-070 con los datos que necesita su alerta.
+class _Hallazgo {
+  final String clave;
+  final String nombre;
+  final String? punto;
+  final EvaluacionRango evaluacion;
+  const _Hallazgo(this.clave, this.nombre, this.punto, this.evaluacion);
 }

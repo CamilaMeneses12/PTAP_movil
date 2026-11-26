@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/aforo_caudal_modelo.dart';
 import '../../../data/models/alerta_sistema_modelo.dart';
+import '../../../domain/alertas/catalogo_parametros_alerta.dart';
 import '../../../domain/calculations/calculos_caudal.dart';
 import '../../../domain/validators/validador_rangos.dart';
 import '../../alerts/providers/alertas_provider.dart';
@@ -121,8 +122,12 @@ class _FormularioAforoCaudalScreenState
       return;
     }
 
+    final aforoId = 'aforo-${DateTime.now().millisecondsSinceEpoch}';
+    final authProvider = context.read<SesionUsuarioProvider>();
+
     // Validación fuera de rango operativo (aviso informativo no bloqueante)
-    final fueraDeRango = resultado.caudalLS < 10.0 || resultado.caudalLS > 140.0;
+    final fueraDeRango = resultado.caudalLS < CatalogoParametrosAlerta.caudalFuenteMinLS ||
+        resultado.caudalLS > CatalogoParametrosAlerta.caudalFuenteMaxLS;
     if (fueraDeRango) {
       await showDialog<void>(
         context: context,
@@ -177,17 +182,23 @@ class _FormularioAforoCaudalScreenState
         descripcion:
             'Aviso: aforo arrojó ${resultado.caudalLS.toStringAsFixed(2)} L/s en Quebrada La Seca (fuera del rango operativo 10–140 L/s). Puede superar la capacidad de tratamiento / indicar falla en la captación.',
         severidad: SeveridadAlerta.advertencia,
-        parametro: 'Caudal Fuente',
+        parametro: 'Caudal de la Quebrada La Seca',
         valorRegistrado: resultado.caudalLS,
+        tipoFormato: TipoFormatoAlerta.aforo,
+        registroId: aforoId,
+        responsable: authProvider.perfil?.nombreCompleto,
+        parametroClave: 'caudal_fuente',
+        minimo: CatalogoParametrosAlerta.caudalFuenteMinLS,
+        maximo: CatalogoParametrosAlerta.caudalFuenteMaxLS,
+        unidad: 'L/s',
       );
     }
 
-    final authProvider = context.read<SesionUsuarioProvider>();
     final horaTexto =
         '${_hora.hour.toString().padLeft(2, '0')}:${_hora.minute.toString().padLeft(2, '0')}';
 
     final nuevoAforo = AforoCaudal(
-      id: 'aforo-${DateTime.now().millisecondsSinceEpoch}',
+      id: aforoId,
       fecha: _fecha,
       hora: horaTexto,
       anchoCauceM: _parse(_anchoController),

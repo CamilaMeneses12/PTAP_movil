@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/routes/app_routes.dart';
 import '../../../data/models/alerta_sistema_modelo.dart';
 import '../../common/widgets/tarjeta_alerta.dart';
 import '../providers/alertas_provider.dart';
@@ -52,7 +53,7 @@ class _AlertasScreenState extends State<AlertasScreen> with SingleTickerProvider
               ),
             ),
             Text(
-              '${alertasProv.activasCount} activas · ${alertasProv.historial.length} resueltas ayer',
+              '${alertasProv.activasCount} activas · ${alertasProv.historial.length} resueltas',
               style: const TextStyle(
                 fontSize: 11,
                 color: AppColors.textoSecundario,
@@ -287,7 +288,7 @@ class _ListaAlertasAgrupadas extends StatelessWidget {
               descripcion: alerta.descripcion,
               severidad: alerta.severidad,
               hora: alerta.hora,
-              alPulsar: () => _mostrarAccionAlerta(context, alerta),
+              alPulsar: () => context.push(AppRoutes.rutaAlerta(alerta.id)),
             ),
           ),
         ],
@@ -310,107 +311,11 @@ class _ListaAlertasAgrupadas extends StatelessWidget {
               descripcion: alerta.descripcion,
               severidad: alerta.severidad,
               hora: alerta.hora,
-              alPulsar: () => _mostrarAccionAlerta(context, alerta),
+              alPulsar: () => context.push(AppRoutes.rutaAlerta(alerta.id)),
             ),
           ),
         ],
       ],
-    );
-  }
-
-  void _mostrarAccionAlerta(BuildContext context, AlertaSistema alerta) {
-    final prov = context.read<AlertasProvider>();
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      backgroundColor: AppColors.blanco,
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    alerta.titulo,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textoPrincipal,
-                    ),
-                  ),
-                ),
-                Text(
-                  alerta.hora,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textoSecundario,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              alerta.descripcion,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.textoSecundario,
-                height: 1.4,
-              ),
-            ),
-            if (alerta.rangoEsperado != null) ...[
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.fondoGeneral,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  'Rango técnico esperado: ${alerta.rangoEsperado}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textoPrincipal,
-                  ),
-                ),
-              ),
-            ],
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                if (!alerta.resuelta)
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        prov.marcarResuelta(alerta.id);
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Alerta marcada como resuelta')),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.exito,
-                      ),
-                      child: const Text('Resolver'),
-                    ),
-                  ),
-                if (!alerta.resuelta) const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text('Cerrar'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

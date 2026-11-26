@@ -6,6 +6,7 @@ import '../../data/models/registro_fisicoquimico.dart';
 import '../../data/models/usuario_perfil.dart';
 import '../../presentation/admin/screens/admin_dashboard_screen.dart';
 import '../../presentation/alerts/screens/alertas_screen.dart';
+import '../../presentation/alerts/screens/detalle_alerta_screen.dart';
 import '../../presentation/asistente/screens/asistente_screen.dart';
 import '../../presentation/auth/providers/auth_provider.dart';
 import '../../presentation/auth/screens/login_screen.dart';
@@ -47,6 +48,10 @@ class AppRoutes {
 
   // Pantalla de Alertas (abierta encima del shell con "<")
   static const String alertas = '/alertas';
+
+  // Detalle de una alerta: /alertas/detalle/<id>
+  static const String alertaDetalle = '/alertas/detalle';
+  static String rutaAlerta(String id) => '$alertaDetalle/${Uri.encodeComponent(id)}';
 
   // Asistente PTAP (chatbot: servidor con nube + modelo local, o modelo dentro del celular)
   static const String asistente = '/asistente';
@@ -204,6 +209,11 @@ class AppRoutes {
           path: alertas,
           name: 'alertas',
           builder: (context, state) => const AlertasScreen(),
+        ),
+        GoRoute(
+          path: '$alertaDetalle/:id',
+          name: 'alertaDetalle',
+          builder: (context, state) => DetalleAlertaScreen(alertaId: state.pathParameters['id']!),
         ),
         GoRoute(
           path: asistente,
