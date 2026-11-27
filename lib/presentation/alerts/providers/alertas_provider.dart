@@ -26,11 +26,43 @@ class AlertasProvider with ChangeNotifier {
         final a = AlertaSistema.fromMap(m);
         if (!ids.contains(a.id)) _alertas.add(a.copyWith(grupoFecha: _grupo(a.fechaHora)));
       }
+      if (incluirAlertaPrueba && !_alertas.any((a) => a.id == idAlertaPrueba)) {
+        _alertas.add(_alertaPrueba());
+      }
       _alertas.sort((a, b) => b.fechaHora.compareTo(a.fechaHora));
       notifyListeners();
     } catch (e) {
       debugPrint('No se pudieron leer las alertas guardadas: $e');
     }
+  }
+
+  /// Alerta de ejemplo para ver cómo luce una notificación. Se crea una sola vez: queda
+  /// guardada en el celular y, al resolverla, no vuelve a aparecer como activa.
+  static bool incluirAlertaPrueba = true;
+  static const idAlertaPrueba = 'alt-prueba';
+
+  static AlertaSistema _alertaPrueba() {
+    final ahora = DateTime.now();
+    return AlertaSistema(
+      id: idAlertaPrueba,
+      titulo: 'Alerta de prueba · Cloro residual en la red',
+      descripcion:
+          'Esta es una alerta de prueba para revisar las notificaciones. Ejemplo: cloro residual de '
+          '0,20 mg/L en Biocabaña, por debajo del mínimo de 0,3 mg/L. Puede resolverla sin problema.',
+      severidad: SeveridadAlerta.advertencia,
+      fechaHora: ahora,
+      hora: '${ahora.hour.toString().padLeft(2, '0')}:${ahora.minute.toString().padLeft(2, '0')}',
+      parametro: 'Cloro residual en la red',
+      valorRegistrado: 0.2,
+      rangoEsperado: _textoRango(0.3, 2.0, 'mg/L'),
+      grupoFecha: 'HOY',
+      tipoFormato: TipoFormatoAlerta.fisicoquimico,
+      puntoControl: 'Biocabaña',
+      parametroClave: 'cloro_red',
+      minimo: 0.3,
+      maximo: 2.0,
+      unidad: 'mg/L',
+    );
   }
 
   static String _grupo(DateTime t) {

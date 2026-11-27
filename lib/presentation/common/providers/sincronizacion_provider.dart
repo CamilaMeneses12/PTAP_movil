@@ -10,7 +10,7 @@ import '../../physicochemical/providers/fisicoquimico_provider.dart';
 /// Sube a Supabase lo que se guardó en el celular sin conexión.
 ///
 /// Lo intenta al abrir la app, cuando la app vuelve a primer plano y cada [intervalo]
-/// mientras haya pendientes. El operario también puede pedirlo con "Sincronizar ahora".
+/// (15 s) mientras haya pendientes. El operario también puede pedirlo con "Sincronizar ahora".
 class SincronizacionProvider extends ChangeNotifier with WidgetsBindingObserver {
   final FisicoquimicoProvider fisico;
   final MedidoresProvider medidores;
@@ -26,7 +26,9 @@ class SincronizacionProvider extends ChangeNotifier with WidgetsBindingObserver 
     required this.fisico,
     required this.medidores,
     required this.caudal,
-    this.intervalo = const Duration(minutes: 1),
+    // Corto para que lo guardado sin señal suba apenas vuelva internet. Solo se intenta
+    // mientras haya pendientes, así que no gasta datos cuando todo está al día.
+    this.intervalo = const Duration(seconds: 15),
     bool automatico = true,
   }) {
     for (final p in [fisico, medidores, caudal]) {

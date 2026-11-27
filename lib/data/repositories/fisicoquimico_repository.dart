@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../../core/utils/mapa_supabase.dart';
 import '../../core/utils/identificador.dart';
 import '../../core/utils/supabase_config.dart';
+import '../../domain/catalogos/puntos_control_red.dart';
 import '../local/cache_sincronizable.dart';
 import '../local/serializacion_local.dart';
 import '../models/registro_fisicoquimico.dart';
@@ -75,15 +76,7 @@ class FisicoquimicoRepository {
   }
 
   /// Puntos de muestreo por defecto según el formato Excel
-  List<String> obtenerPuntosMuestreoDefecto() {
-    return const [
-      'Biocabaña',
-      'Agroindustria',
-      'Gastronomia',
-      'ENCC',
-      'Dispensador Bienestar',
-    ];
-  }
+  List<String> obtenerPuntosMuestreoDefecto() => PuntosControlRed.nombres;
 
   CacheSincronizable<RegistroFisicoquimico> get _cache => CacheSincronizable.de<RegistroFisicoquimico>(
         'fisicoquimicos',

@@ -7,6 +7,7 @@ import '../../../core/utils/identificador.dart';
 import '../../../data/models/alerta_sistema_modelo.dart';
 import '../../../data/models/registro_fisicoquimico.dart';
 import '../../../domain/alertas/catalogo_parametros_alerta.dart';
+import '../../../domain/catalogos/puntos_control_red.dart';
 import '../../../domain/validators/validador_rangos.dart';
 import '../../alerts/providers/alertas_provider.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -53,14 +54,8 @@ class _FormularioFisicoquimicoScreenState
   // Puntos de Control en Red
   final List<MedicionPuntoControl> _puntosControl = [];
 
-  // Puntos por defecto para agregar rápido
-  final List<String> _areasDisponibles = [
-    'Biocabaña',
-    'Agroindustria',
-    'Gastronomia',
-    'ENCC',
-    'Dispensador Bienestar',
-  ];
+  // Todos los puntos de control en red del DO-F-070
+  final List<String> _areasDisponibles = PuntosControlRed.nombres;
 
   @override
   void initState() {
@@ -926,8 +921,8 @@ class _FormularioFisicoquimicoScreenState
                         ],
                       ),
                       const SizedBox(height: 4),
-                      const Text(
-                        'Toma de muestras en áreas de formación (Biocabaña, Gastronomía, etc.)',
+                      Text(
+                        'Toma de muestras en las ${PuntosControlRed.todos.length} áreas de la red. Toque cada punto para registrar sus valores.',
                         style: TextStyle(fontSize: 11, color: AppColors.textoSecundario),
                       ),
                       const SizedBox(height: 12),

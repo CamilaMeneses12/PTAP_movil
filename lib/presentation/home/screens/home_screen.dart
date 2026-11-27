@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../alerts/providers/alertas_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../common/widgets/aviso_sincronizacion.dart';
+import '../../common/widgets/banner_estado_planta.dart';
+import '../../common/widgets/chip_estado.dart';
+import '../../common/widgets/tarjeta_kpi.dart';
+import '../../../domain/alertas/catalogo_parametros_alerta.dart';
 import '../../../domain/calculations/resumen_inicio.dart';
 import '../../flow/providers/caudal_provider.dart';
 import '../../history/providers/historial_provider.dart';
@@ -35,6 +40,7 @@ class HomeScreen extends StatelessWidget {
     final calidad = ResumenInicio.calidadAguaTratada(fisicoProv.registros);
     final caudal = ResumenInicio.caudalQuebrada(caudalProv.aforos);
     final jornada = ResumenInicio.ultimaJornada(medidoresProv.jornadas);
+    final resumenAlertas = ResumenInicio.resumenAlertas(alertasProv.activas);
     final VoidCallback? registrarFisico =
         puedeEditar ? () => context.push(AppRoutes.fisicoquimicoNuevo) : null;
 
@@ -157,6 +163,55 @@ class HomeScreen extends StatelessWidget {
               // Registros guardados en el celular sin subir (modo sin conexión)
               const AvisoSincronizacion(),
 
+              // Banner de estado y tarjetas de indicadores del Inicio anterior, ahora con los
+              // valores de los registros (último DO-F-070, último aforo y última jornada).
+              BannerEstadoPlanta(
+                estado: resumenAlertas.criticas > 0 ? TipoEstadoPlanta.enAlerta : TipoEstadoPlanta.operativa,
+                horaActualizacion: DateFormat('HH:mm').format(DateTime.now()),
+                descripcion: _descripcionEstado(resumenAlertas, calidad),
+                indicadores: [
+                  ('pH', _valor(calidad?.ph.valor)),
+                  ('Turbidez', _valor(calidad?.turbidez.valor, ' NTU')),
+                  ('Cloro res.', _valor(calidad?.cloro.valor, ' mg/L')),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: TarjetaKpi(
+                      key: const Key('kpi_caudal'),
+                      titulo: 'Caudal de entrada',
+                      valor: caudal == null ? '—' : _num.format(caudal.ultimo.caudalLS),
+                      unidad: caudal == null ? '' : 'L/s',
+                      icono: Icons.arrow_downward_rounded,
+                      variacion: _variacionCaudal(caudal),
+                      variacionPositiva: (caudal?.diferenciaLS ?? 0) >= 0,
+                      notaRango: caudal == null
+                          ? 'Sin aforos registrados'
+                          : 'Rango ${_num.format(CatalogoParametrosAlerta.caudalFuenteMinLS)}–'
+                              '${_num.format(CatalogoParametrosAlerta.caudalFuenteMaxLS)} L/s',
+                      alPulsar: () => alCambiarPestana?.call(1),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TarjetaKpi(
+                      key: const Key('kpi_volumen'),
+                      titulo: 'Volumen macromedidor',
+                      valor: jornada == null ? '—' : _num.format(jornada.consumoMacromedidor),
+                      unidad: jornada == null ? '' : 'm³',
+                      icono: Icons.water_drop_outlined,
+                      notaRango: jornada == null
+                          ? 'Sin jornadas registradas'
+                          : 'Jornada ${DateFormat('dd/MM').format(jornada.fecha)} · pérdida ${_num.format(jornada.porcentajePerdida)} %',
+                      alPulsar: () => alCambiarPestana?.call(2),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
               // 2. Tarjetas calculadas con los registros del operario (DO-F-070, medidores,
               //    aforos y alertas). Se actualizan solas porque escuchan a los providers.
               TarjetaPendientesHoy(
@@ -194,7 +249,7 @@ class HomeScreen extends StatelessWidget {
                     : () => context.push(AppRoutes.medidoresDetalle, extra: jornada),
               ),
               TarjetaAlertasActivas(
-                resumen: ResumenInicio.resumenAlertas(alertasProv.activas),
+                resumen: resumenAlertas,
                 alPulsar: () => context.push(AppRoutes.alertas),
               ),
 
@@ -259,6 +314,33 @@ class HomeScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static final _num = NumberFormat('#,##0.0#', 'es_CO');
+
+  static String _valor(double? v, [String unidad = '']) => v == null ? '—' : '${_num.format(v)}$unidad';
+
+  /// Variación porcentual del último aforo frente al anterior; null si es el primero.
+  static String? _variacionCaudal(CaudalQuebrada? caudal) {
+    final dif = caudal?.diferenciaLS;
+    final anterior = caudal?.anterior?.caudalLS;
+    if (dif == null || anterior == null || anterior == 0) return null;
+    final pct = dif / anterior * 100;
+    return '${pct >= 0 ? '+' : '−'}${_num.format(pct.abs())} %';
+  }
+
+  static String _descripcionEstado(ResumenAlertas alertas, CalidadAguaTratada? calidad) {
+    if (alertas.total > 0) {
+      final criticas = alertas.criticas > 0
+          ? ' (${alertas.criticas} ${alertas.criticas == 1 ? 'crítica' : 'críticas'})'
+          : '';
+      return '${alertas.total} ${alertas.total == 1 ? 'alerta activa' : 'alertas activas'}$criticas. '
+          'Revíselas en Notificaciones.';
+    }
+    if (calidad == null) return 'No hay alertas activas. Aún no hay análisis DO-F-070 registrados.';
+    return calidad.conforme
+        ? 'No hay alertas activas. El último DO-F-070 está dentro de rango.'
+        : 'No hay alertas activas, pero el último DO-F-070 tiene valores fuera de rango.';
   }
 
   static String _rutaFormulario(FormatoDiario formato) => switch (formato) {

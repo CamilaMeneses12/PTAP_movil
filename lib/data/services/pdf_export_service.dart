@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import '../../domain/catalogos/puntos_control_red.dart';
 import '../models/aforo_caudal_modelo.dart';
 import '../models/item_historial_modelo.dart';
 import '../models/medidores_modelos.dart';
@@ -52,23 +53,13 @@ class PdfExportService {
               'Clorada\nColor (<15)',
               'Clorada\nTurb (<2)',
               'Clorada\nCloro (0.3-2)',
-              'Red\nBiocab.',
-              'Red\nAgroind.',
-              'Red\nGastro.',
-              'Red\nENCC',
-              'Red\nBienest.',
+              for (final p in PuntosControlRed.todos) 'Red\n${p.corto}',
               'Observaciones',
               'Operario',
             ],
             data: registros.map((r) {
-              String getPunto(String nombre) {
-                try {
-                  final p = r.puntosControl.firstWhere((e) => e.areaNombre.toLowerCase().contains(nombre.toLowerCase()));
-                  return p.cloroResidual?.toStringAsFixed(2) ?? '-';
-                } catch (_) {
-                  return '-';
-                }
-              }
+              String getPunto(String nombre) =>
+                  PuntosControlRed.buscar(r.puntosControl, nombre)?.cloroResidual?.toStringAsFixed(2) ?? '-';
 
               return [
                 _formatoFecha.format(r.fecha),
@@ -81,11 +72,7 @@ class PdfExportService {
                 r.cloradaColorAparente?.toStringAsFixed(1) ?? '-',
                 r.cloradaTurbidez?.toStringAsFixed(2) ?? '-',
                 r.cloradaCloroResidual?.toStringAsFixed(2) ?? '-',
-                getPunto('Biocabaña'),
-                getPunto('Agroindustria'),
-                getPunto('Gastronomía'),
-                getPunto('ENCC'),
-                getPunto('Dispensador'),
+                for (final p in PuntosControlRed.todos) getPunto(p.nombre),
                 (r.observaciones != null && r.observaciones!.isNotEmpty) ? r.observaciones! : '-',
                 r.responsableNombre.isNotEmpty ? r.responsableNombre : 'Operario',
               ];
@@ -102,7 +89,8 @@ class PdfExportService {
               ),
             ),
             cellAlignment: pw.Alignment.center,
-            cellStyle: const pw.TextStyle(fontSize: 7),
+            // Con los 9 puntos de red la tabla tiene 21 columnas: letra un poco más pequeña.
+            cellStyle: const pw.TextStyle(fontSize: 6.5),
             cellPadding: const pw.EdgeInsets.symmetric(horizontal: 2, vertical: 3),
           ),
           pw.SizedBox(height: 10),

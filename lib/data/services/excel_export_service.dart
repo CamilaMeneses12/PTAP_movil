@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:excel/excel.dart';
 import 'package:intl/intl.dart';
+import '../../domain/catalogos/puntos_control_red.dart';
 import '../models/aforo_caudal_modelo.dart';
 import '../models/item_historial_modelo.dart';
 import '../models/medidores_modelos.dart';
@@ -46,25 +47,15 @@ class ExcelExportService {
       TextCellValue('AGUA CLORADA Color (UPC)'),
       TextCellValue('AGUA CLORADA Turbidez (UNT)'),
       TextCellValue('AGUA CLORADA Cloro Residual (mg/L)'),
-      TextCellValue('RED Biocabaña (mg/L)'),
-      TextCellValue('RED Agroindustria (mg/L)'),
-      TextCellValue('RED Gastronomía (mg/L)'),
-      TextCellValue('RED ENCC (mg/L)'),
-      TextCellValue('RED Dispensador (mg/L)'),
+      for (final p in PuntosControlRed.todos) TextCellValue('RED ${p.nombre} (mg/L)'),
       TextCellValue('OBSERVACIONES'),
       TextCellValue('RESPONSABLE'),
     ]);
 
     // Filas de datos
     for (final r in registros) {
-      String getPunto(String nombre) {
-        try {
-          final p = r.puntosControl.firstWhere((e) => e.areaNombre.toLowerCase().contains(nombre.toLowerCase()));
-          return p.cloroResidual?.toStringAsFixed(2) ?? '';
-        } catch (_) {
-          return '';
-        }
-      }
+      String getPunto(String nombre) =>
+          PuntosControlRed.buscar(r.puntosControl, nombre)?.cloroResidual?.toStringAsFixed(2) ?? '';
 
       sheet.appendRow([
         TextCellValue(_formatoFecha.format(r.fecha)),
@@ -77,11 +68,7 @@ class ExcelExportService {
         r.cloradaColorAparente != null ? DoubleCellValue(r.cloradaColorAparente!) : TextCellValue(''),
         r.cloradaTurbidez != null ? DoubleCellValue(r.cloradaTurbidez!) : TextCellValue(''),
         r.cloradaCloroResidual != null ? DoubleCellValue(r.cloradaCloroResidual!) : TextCellValue(''),
-        TextCellValue(getPunto('Biocabaña')),
-        TextCellValue(getPunto('Agroindustria')),
-        TextCellValue(getPunto('Gastronomía')),
-        TextCellValue(getPunto('ENCC')),
-        TextCellValue(getPunto('Dispensador')),
+        for (final p in PuntosControlRed.todos) TextCellValue(getPunto(p.nombre)),
         TextCellValue(r.observaciones ?? ''),
         TextCellValue(r.responsableNombre),
       ]);

@@ -8,10 +8,8 @@ import '../../../data/models/aforo_caudal_modelo.dart';
 import '../../../data/models/alerta_sistema_modelo.dart';
 import '../../../domain/alertas/catalogo_parametros_alerta.dart';
 import '../../../domain/calculations/calculos_caudal.dart';
-import '../../../domain/validators/validador_rangos.dart';
 import '../../alerts/providers/alertas_provider.dart';
 import '../../auth/providers/auth_provider.dart';
-import '../../common/widgets/mensaje_fuera_de_rango.dart';
 import '../providers/caudal_provider.dart';
 
 class FormularioAforoCaudalScreen extends StatefulWidget {
@@ -126,58 +124,11 @@ class _FormularioAforoCaudalScreenState
     final aforoId = generarUuid();
     final authProvider = context.read<SesionUsuarioProvider>();
 
-    // Validación fuera de rango operativo (aviso informativo no bloqueante)
+    // El caudal fuera de rango no se le muestra al operario mientras registra: se marca en el
+    // aforo (fuera_de_rango) y se envía a la pantalla Alertas.
     final fueraDeRango = resultado.caudalLS < CatalogoParametrosAlerta.caudalFuenteMinLS ||
         resultado.caudalLS > CatalogoParametrosAlerta.caudalFuenteMaxLS;
     if (fueraDeRango) {
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: true,
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: const BoxDecoration(
-                  color: AppColors.advertenciaFondo,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.warning_amber_rounded, color: AppColors.advertencia, size: 24),
-              ),
-              const SizedBox(width: 10),
-              const Expanded(
-                child: Text('Aviso: Caudal fuera de rango', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textoPrincipal)),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'El caudal calculado es de ${resultado.caudalLS.toStringAsFixed(2)} L/s.\n\n'
-                '${resultado.caudalLS < 10.0 ? "El caudal es críticamente bajo en la fuente quebrada La Seca; riesgo de estiaje severo." : "Puede superar la capacidad de tratamiento / indicar falla en la captación."}\n\n'
-                'El aforo se guardará directamente y generará una alerta en el sistema.',
-                style: const TextStyle(fontSize: 12, height: 1.4, color: AppColors.textoSecundario),
-              ),
-            ],
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.azulPrimario,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: const Text('Entendido', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
-      );
-
-      if (!mounted) return;
-
       context.read<AlertasProvider>().agregarAlerta(
         titulo: 'Caudal en fuente fuera de rango',
         descripcion:
@@ -426,22 +377,6 @@ class _FormularioAforoCaudalScreenState
                             : (_factorValido == null ? 'Ingrese un K entre 0,60 y 0,95' : '0,0000 m/s'),
                         color: AppColors.textoSecundario,
                       ),
-                      if (resultado != null &&
-                          (resultado.caudalLS < 10.0 || resultado.caudalLS > 140.0)) ...[
-                        const SizedBox(height: 12),
-                        MensajeFueraDeRango(
-                          evaluacion: EvaluacionRango.fueraDeRango(
-                            parametro: 'Caudal Quebrada La Seca',
-                            valor: resultado.caudalLS,
-                            minimo: 10.0,
-                            maximo: 140.0,
-                            unidad: 'L/s',
-                            explicacion:
-                                'Puede superar la capacidad de tratamiento / indicar falla en la captación.',
-                            severidad: 'advertencia',
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ),
