@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
 import '../../../core/constants/app_colors.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../alerts/providers/alertas_provider.dart';
@@ -41,8 +42,7 @@ class HomeScreen extends StatelessWidget {
     final caudal = ResumenInicio.caudalQuebrada(caudalProv.aforos);
     final jornada = ResumenInicio.ultimaJornada(medidoresProv.jornadas);
     final resumenAlertas = ResumenInicio.resumenAlertas(alertasProv.activas);
-    final VoidCallback? registrarFisico =
-        puedeEditar ? () => context.push(AppRoutes.fisicoquimicoNuevo) : null;
+    final VoidCallback? registrarFisico = puedeEditar ? () => context.push(AppRoutes.fisicoquimicoNuevo) : null;
 
     return Scaffold(
       backgroundColor: AppColors.fondoGeneral,
@@ -94,32 +94,14 @@ class HomeScreen extends StatelessWidget {
                     ],
                   ),
 
-                  // Botón del Asistente PTAP (chatbot)
-                  Container(
-                    width: 42,
-                    height: 42,
-                    margin: const EdgeInsets.only(right: 8),
-                    decoration: BoxDecoration(
-                      color: AppColors.blanco,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.bordes),
-                      boxShadow: AppColors.sombraSuave,
-                    ),
-                    child: IconButton(
-                      key: const Key('abrir_asistente'),
-                      tooltip: 'Asistente PTAP',
-                      icon: const Icon(Icons.smart_toy_outlined, size: 22, color: AppColors.azulMarino),
-                      onPressed: () => context.push(AppRoutes.asistente),
-                    ),
-                  ),
-
-                  // Botón campana de notificaciones con insignia de alertas activas
-                  Stack(
-                    alignment: Alignment.center,
+                  // Asistente PTAP (chatbot) y notificaciones, juntos a la derecha
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
                         width: 42,
                         height: 42,
+                        margin: const EdgeInsets.only(right: 8),
                         decoration: BoxDecoration(
                           color: AppColors.blanco,
                           shape: BoxShape.circle,
@@ -127,32 +109,48 @@ class HomeScreen extends StatelessWidget {
                           boxShadow: AppColors.sombraSuave,
                         ),
                         child: IconButton(
-                          icon: const Icon(Icons.notifications_none_rounded, size: 22, color: AppColors.azulMarino),
-                          onPressed: () => context.push(AppRoutes.alertas),
+                          key: const Key('abrir_asistente'),
+                          tooltip: 'Asistente PTAP',
+                          icon: const Icon(Icons.smart_toy_outlined, size: 22, color: AppColors.azulMarino),
+                          onPressed: () => context.push(AppRoutes.asistente),
                         ),
                       ),
-                      if (alertasProv.activasCount > 0)
-                        Positioned(
-                          top: 4,
-                          right: 4,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: const BoxDecoration(
-                              color: AppColors.critico,
+
+                      // Botón campana de notificaciones con insignia de alertas activas
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: AppColors.blanco,
                               shape: BoxShape.circle,
+                              border: Border.all(color: AppColors.bordes),
+                              boxShadow: AppColors.sombraSuave,
                             ),
-                            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                            child: Text(
-                              '${alertasProv.activasCount}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              textAlign: TextAlign.center,
+                            child: IconButton(
+                              icon: const Icon(Icons.notifications_none_rounded, size: 22, color: AppColors.azulMarino),
+                              onPressed: () => context.push(AppRoutes.alertas),
                             ),
                           ),
-                        ),
+                          if (alertasProv.activasCount > 0)
+                            Positioned(
+                              top: 4,
+                              right: 4,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(color: AppColors.critico, shape: BoxShape.circle),
+                                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                                child: Text(
+                                  '${alertasProv.activasCount}',
+                                  style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
                 ],
@@ -190,7 +188,7 @@ class HomeScreen extends StatelessWidget {
                       notaRango: caudal == null
                           ? 'Sin aforos registrados'
                           : 'Rango ${_num.format(CatalogoParametrosAlerta.caudalFuenteMinLS)}–'
-                              '${_num.format(CatalogoParametrosAlerta.caudalFuenteMaxLS)} L/s',
+                                '${_num.format(CatalogoParametrosAlerta.caudalFuenteMaxLS)} L/s',
                       alPulsar: () => alCambiarPestana?.call(1),
                     ),
                   ),
@@ -237,21 +235,14 @@ class HomeScreen extends StatelessWidget {
               TarjetaCaudalQuebrada(
                 caudal: caudal,
                 alRegistrar: puedeEditar ? () => context.push(AppRoutes.caudalNuevo) : null,
-                alVerDetalle: caudal == null
-                    ? null
-                    : () => context.push(AppRoutes.caudalDetalle, extra: caudal.ultimo),
+                alVerDetalle: caudal == null ? null : () => context.push(AppRoutes.caudalDetalle, extra: caudal.ultimo),
               ),
               TarjetaPerdidasAgua(
                 jornada: jornada,
                 alRegistrar: puedeEditar ? () => context.push(AppRoutes.medidoresNuevo) : null,
-                alVerDetalle: jornada == null
-                    ? null
-                    : () => context.push(AppRoutes.medidoresDetalle, extra: jornada),
+                alVerDetalle: jornada == null ? null : () => context.push(AppRoutes.medidoresDetalle, extra: jornada),
               ),
-              TarjetaAlertasActivas(
-                resumen: resumenAlertas,
-                alPulsar: () => context.push(AppRoutes.alertas),
-              ),
+              TarjetaAlertasActivas(resumen: resumenAlertas, alPulsar: () => context.push(AppRoutes.alertas)),
 
               const SizedBox(height: 2),
 
@@ -344,17 +335,15 @@ class HomeScreen extends StatelessWidget {
   }
 
   static String _rutaFormulario(FormatoDiario formato) => switch (formato) {
-        FormatoDiario.fisicoquimico => AppRoutes.fisicoquimicoNuevo,
-        FormatoDiario.medidores => AppRoutes.medidoresNuevo,
-        FormatoDiario.aforo => AppRoutes.caudalNuevo,
-      };
+    FormatoDiario.fisicoquimico => AppRoutes.fisicoquimicoNuevo,
+    FormatoDiario.medidores => AppRoutes.medidoresNuevo,
+    FormatoDiario.aforo => AppRoutes.caudalNuevo,
+  };
 
   void _mostrarMenuNuevoRegistro(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       backgroundColor: AppColors.blanco,
       builder: (ctx) => Padding(
         padding: const EdgeInsets.all(20),

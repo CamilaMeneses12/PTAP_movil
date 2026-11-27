@@ -11,7 +11,8 @@ class AppColors {
   static const Color turquesa = Color(0xFF14B8A6);           // Chip "Operativa", gauges
   static const Color turquesaFondo = Color(0xFFE6F7F5);
   static const Color turquesaTexto = Color(0xFF0D9488);      // Texto sobre fondo turquesa (chips, rol Consultor)      // Fondo suave chip "Operativa"
-  static const Color fondoGeneral = Color(0xFFF3F6FA);       // Fondo general de todas las pantallas
+  static const Color fondoGeneral = Color(0xFFF2F2F2);       // Fondo general de todas las pantallas: el mismo gris del video de bienvenida
+  static const Color fondoIntro = fondoGeneral;              // Fondo del video (animacion.mp4); igual en Android (@color/fondo_intro)
   static const Color blanco = Color(0xFFFFFFFF);             // Tarjetas, modales y formularios
   static const Color superficie = Color(0xFFFFFFFF);         // Superficie de tarjetas
   static const Color textoPrincipal = Color(0xFF0F1E3D);     // Títulos y valores grandes de alta legibilidad

@@ -74,7 +74,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final cargando = authProvider.estado == EstadoAuth.cargando;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F7FC),
+      backgroundColor: AppColors.fondoGeneral,
       body: Stack(
         children: [
           // 1. Fondo con ondas orgánicas en esquinas superior izquierda e inferior derecha (fiel a referencia.png)
@@ -400,7 +400,7 @@ class _OndasDecorativasPainter extends CustomPainter {
     final h = size.height;
 
     // Fondo suave base
-    final bgPaint = Paint()..color = const Color(0xFFF3F7FC);
+    final bgPaint = Paint()..color = AppColors.fondoGeneral;
     canvas.drawRect(Rect.fromLTWH(0, 0, w, h), bgPaint);
 
     // Ondas superiores izquierdas
