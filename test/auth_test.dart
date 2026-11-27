@@ -118,7 +118,6 @@ void main() {
         correo: 'nuevo.operario@sena.edu.co',
         contrasena: 'clave123',
         nombreCompleto: 'Juan Pérez',
-        rol: 'operario',
       );
 
       expect(exito, isTrue);
@@ -150,7 +149,6 @@ void main() {
         correo: 'invalido@sena.edu.co',
         contrasena: '123',
         nombreCompleto: 'Test',
-        rol: 'operario',
       );
       expect(fallidoClave, isFalse);
       expect(provider.mensajeError, contains('al menos 6 caracteres'));
@@ -160,7 +158,6 @@ void main() {
         correo: 'nuevo.operario@sena.edu.co',
         contrasena: 'password123',
         nombreCompleto: 'Otro',
-        rol: 'operario',
       );
       expect(fallidoDuplicado, isFalse);
       expect(provider.mensajeError, contains('ya se encuentra registrado'));

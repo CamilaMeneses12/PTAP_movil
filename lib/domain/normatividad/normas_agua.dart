@@ -35,6 +35,7 @@ class NormasAgua {
   static const String res082 = 'res_082_2009';
   static const String res4716 = 'res_4716_2010';
   static const String decreto1076 = 'decreto_1076_2015';
+  static const String res0330 = 'res_0330_2017';
 
   // TODO: verificar con la norma las entidades firmantes y los apartes que aplican en la PTAP.
   static const List<NormaAgua> todas = [
@@ -127,6 +128,23 @@ class NormasAgua {
       ],
       // TODO: verificar con la norma el caudal concedido y la autoridad ambiental que otorgó la concesión.
       nota: 'El caudal concedido y la autoridad ambiental están pendientes de confirmar.',
+    ),
+    NormaAgua(
+      id: res0330,
+      tipo: 'Resolución',
+      numero: '0330',
+      anio: 2017,
+      entidad: 'Ministerio de Vivienda, Ciudad y Territorio',
+      titulo: 'Reglamento Técnico del Sector de Agua Potable y Saneamiento Básico (RAS)',
+      deQueTrata:
+          'Fija los requisitos técnicos para el diseño, la construcción, la puesta en marcha, la operación, '
+          'el mantenimiento y la rehabilitación de los sistemas de agua potable y saneamiento básico.',
+      aplicaEnPtap: [
+        'La operación y el mantenimiento de los procesos de potabilización de la planta.',
+        'El control diario de los procesos (agua cruda, filtrada y clorada) que se registra en el DO-F-070.',
+        'La medición de caudales y volúmenes con aforos y medidores.',
+      ],
+      nota: 'Fue modificada por la Resolución 0799 de 2021.',
     ),
   ];
 

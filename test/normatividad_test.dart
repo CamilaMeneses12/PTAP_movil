@@ -9,7 +9,7 @@ import 'package:planta_agua/presentation/help/screens/normatividad_screen.dart';
 import 'package:planta_agua/presentation/help/widgets/boton_ver_norma.dart';
 
 void main() {
-  test('Las 6 normas pedidas, con número, año, entidad, objeto y qué aplica en la PTAP', () {
+  test('Las 7 normas pedidas, con número, año, entidad, objeto y qué aplica en la PTAP', () {
     expect(NormasAgua.todas.map((n) => n.nombreCorto), [
       'Decreto 1575 de 2007',
       'Resolución 2115 de 2007',
@@ -17,6 +17,7 @@ void main() {
       'Resolución 082 de 2009',
       'Resolución 4716 de 2010',
       'Decreto 1076 de 2015',
+      'Resolución 0330 de 2017',
     ]);
     for (final n in NormasAgua.todas) {
       expect(n.entidad, isNotEmpty);

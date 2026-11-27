@@ -20,7 +20,6 @@ class _RegistroScreenState extends State<RegistroScreen> {
   final _claveController = TextEditingController();
   final _confirmarClaveController = TextEditingController();
 
-  String _rolSeleccionado = 'operario';
   bool _ocultarClave = true;
 
   @override
@@ -40,7 +39,6 @@ class _RegistroScreenState extends State<RegistroScreen> {
       correo: _correoController.text.trim(),
       contrasena: _claveController.text,
       nombreCompleto: _nombreController.text.trim(),
-      rol: _rolSeleccionado,
     );
 
     if (exito && mounted) {
@@ -161,7 +159,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
                         ),
                         const SizedBox(height: 16),
 
-                        // Apartado: Rol en la planta (adaptativo, sin desbordamiento)
+                        // Rol fijo: toda cuenta nueva entra como operario.
                         const Text(
                           'Rol en la planta',
                           style: TextStyle(
@@ -173,35 +171,19 @@ class _RegistroScreenState extends State<RegistroScreen> {
                         const SizedBox(height: 8),
 
                         _TarjetaOpcionRol(
+                          key: const Key('rol_operario_fijo'),
                           rol: 'operario',
                           titulo: AppStrings.rolOperario,
                           descripcion: 'Registra en campo y monitoreo de planta',
                           icono: Icons.engineering_outlined,
                           color: AppColors.azulInstitucional,
-                          seleccionado: _rolSeleccionado == 'operario',
-                          onTap: () => setState(() => _rolSeleccionado = 'operario'),
+                          seleccionado: true,
+                          onTap: () {},
                         ),
-                        const SizedBox(height: 8),
-
-                        _TarjetaOpcionRol(
-                          rol: 'administrador',
-                          titulo: AppStrings.rolAdmin,
-                          descripcion: 'Control total del sistema y catálogos',
-                          icono: Icons.admin_panel_settings_outlined,
-                          color: AppColors.azulInstitucional,
-                          seleccionado: _rolSeleccionado == 'administrador',
-                          onTap: () => setState(() => _rolSeleccionado = 'administrador'),
-                        ),
-                        const SizedBox(height: 8),
-
-                        _TarjetaOpcionRol(
-                          rol: 'consultor_siga',
-                          titulo: AppStrings.rolConsultorSiga,
-                          descripcion: 'Consulta de registros, auditoría y reportes',
-                          icono: Icons.analytics_outlined,
-                          color: AppColors.azulInstitucional,
-                          seleccionado: _rolSeleccionado == 'consultor_siga',
-                          onTap: () => setState(() => _rolSeleccionado = 'consultor_siga'),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Las cuentas nuevas entran como Operario. Si necesitas otro rol, pídeselo a un administrador.',
+                          style: TextStyle(fontSize: 11, color: AppColors.textoSecundario),
                         ),
                         const SizedBox(height: 16),
 
@@ -300,6 +282,7 @@ class _TarjetaOpcionRol extends StatelessWidget {
   final VoidCallback onTap;
 
   const _TarjetaOpcionRol({
+    super.key,
     required this.rol,
     required this.titulo,
     required this.descripcion,

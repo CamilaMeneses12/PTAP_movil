@@ -32,7 +32,7 @@ begin
         new.id,
         coalesce(new.raw_user_meta_data->>'nombre_completo', split_part(new.email, '@', 1)),
         new.email,
-        coalesce(new.raw_user_meta_data->>'rol', 'operario')
+        'operario' -- toda cuenta nueva entra como operario; otro rol lo asigna un administrador
     )
     on conflict (id) do update set
         correo = excluded.correo,
@@ -390,6 +390,10 @@ insert into public.puntos_muestreo (nombre, descripcion) values
     ('Agroindustria', 'Punto de muestreo en red Agroindustria'),
     ('Gastronomia', 'Punto de muestreo en red Gastronomía'),
     ('ENCC', 'Punto de muestreo en red ENCC'),
+    ('SENNOVA', 'Punto de muestreo en red SENNOVA'),
+    ('Laboratorios', 'Punto de muestreo en red Laboratorios'),
+    ('Cafetería', 'Punto de muestreo en red Cafetería'),
+    ('Pecuaria', 'Punto de muestreo en red Pecuaria'),
     ('Dispensador Bienestar', 'Dispensador de agua Bienestar al Aprendiz')
 on conflict (nombre) do nothing;
 

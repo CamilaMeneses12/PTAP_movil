@@ -72,12 +72,11 @@ class SesionUsuarioProvider extends ChangeNotifier {
     }
   }
 
-  /// Registra una nueva cuenta de usuario
+  /// Registra una nueva cuenta de usuario. Toda cuenta nueva entra como operario.
   Future<bool> registrarUsuario({
     required String correo,
     required String contrasena,
     required String nombreCompleto,
-    required String rol,
   }) async {
     _estado = EstadoAuth.cargando;
     _mensajeError = null;
@@ -88,7 +87,6 @@ class SesionUsuarioProvider extends ChangeNotifier {
         correo: correo,
         contrasena: contrasena,
         nombreCompleto: nombreCompleto,
-        rol: rol,
       );
       _estado = EstadoAuth.autenticado;
       notifyListeners();

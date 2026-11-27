@@ -87,15 +87,18 @@ class AuthRepository {
     );
   }
 
-  /// Registra un nuevo usuario con correo, contraseña, nombre y rol.
+  /// Rol de toda cuenta creada desde "Crear cuenta". Otro rol solo lo asigna un administrador.
+  static const String rolCuentaNueva = 'operario';
+
+  /// Registra un nuevo usuario con correo, contraseña y nombre; siempre como operario.
   /// Se comunica con Supabase si está disponible; de lo contrario, registra la cuenta
   /// de forma autónoma garantizando funcionamiento inmediato y sin errores de servidor.
   Future<UsuarioPerfil> registrarUsuario({
     required String correo,
     required String contrasena,
     required String nombreCompleto,
-    required String rol,
   }) async {
+    const rol = rolCuentaNueva;
     final emailNorm = correo.trim().toLowerCase();
     final nombreNorm = nombreCompleto.trim();
 
@@ -210,7 +213,8 @@ class AuthRepository {
               user?.email?.split('@').first ??
               'Usuario',
           correo: user?.email ?? '',
-          rol: user?.userMetadata?['rol'] ?? 'operario',
+          // El rol nunca se toma de los metadatos que envía el celular.
+          rol: rolCuentaNueva,
           activo: true,
           createdAt: DateTime.now(),
         );
