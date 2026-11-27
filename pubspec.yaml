@@ -28,8 +28,6 @@ dependencies:
   image: ^4.3.0
   tflite_flutter: ^0.12.1
   flutter_gemma: ^0.13.6
-  video_player: ^2.14.1
-
 dev_dependencies:
   flutter_test:
     sdk: flutter

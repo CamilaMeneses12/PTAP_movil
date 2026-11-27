@@ -12,57 +12,24 @@ import 'presentation/auth/providers/auth_provider.dart';
 import 'presentation/common/providers/sincronizacion_provider.dart';
 import 'presentation/flow/providers/caudal_provider.dart';
 import 'presentation/history/providers/historial_provider.dart';
-import 'presentation/intro/screens/intro_video_screen.dart';
 import 'presentation/meters/providers/medidores_provider.dart';
 import 'presentation/physicochemical/providers/fisicoquimico_provider.dart';
 import 'presentation/settings/providers/preferencias_provider.dart';
 import 'presentation/settings/providers/umbrales_provider.dart';
 
-void main() {
+/// El video de bienvenida lo reproduce Android (InicioActivity.kt) apenas se toca el ícono.
+/// Mientras tanto este main() ya corre por detrás (AppPtap.kt lo arranca), así que al terminar
+/// el video el login aparece de inmediato.
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // El video de bienvenida sale de una vez; mientras se ve, la app se prepara por detrás.
-  runApp(const ArranqueApp());
-}
 
-/// Localización en español y Supabase (si las credenciales están presentes).
-Future<void> prepararApp() async {
+  // Inicializar localización en español
   await initializeDateFormatting('es_ES', null);
+
+  // Inicializar Supabase si las credenciales están presentes
   await SupabaseConfig.inicializar();
-}
 
-/// Muestra el video de bienvenida apenas se abre la app y luego pasa al login.
-/// La app real se crea cuando terminan el video y la preparación (lo que tarde más).
-class ArranqueApp extends StatefulWidget {
-  final Future<void> Function() preparar;
-
-  const ArranqueApp({super.key, this.preparar = prepararApp});
-
-  @override
-  State<ArranqueApp> createState() => _ArranqueAppState();
-}
-
-class _ArranqueAppState extends State<ArranqueApp> {
-  bool _videoTerminado = false;
-  bool _appLista = false;
-
-  @override
-  void initState() {
-    super.initState();
-    widget.preparar().whenComplete(() {
-      if (mounted) setState(() => _appLista = true);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_videoTerminado && _appLista) return const PlantaAguaApp();
-    return MaterialApp(
-      title: AppStrings.appNombre,
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.temaClaro,
-      home: IntroVideoScreen(alTerminar: () => setState(() => _videoTerminado = true)),
-    );
-  }
+  runApp(const PlantaAguaApp());
 }
 
 class PlantaAguaApp extends StatefulWidget {
